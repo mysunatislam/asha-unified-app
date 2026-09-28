@@ -1,0 +1,19 @@
+// Small, version-controlled retrieval set: only capabilities actually implemented here.
+export const guides = {
+  companion:
+    "The caregiver starts support once on the patient phone to grant camera/audio permission. Asha introduces each page, checks in gently about every two minutes while support is active, and asks after sustained changes. Pause Asha check-ins is available. Details contains every module. The caregiver completes assessment and calibration; no capability locks access. A calibrated patient response proposes a request, then a separate confirmation sends it to the assigned caregiver. Ordinary blinks never initiate or confirm requests. The app does not place telephone calls. Do not announce delivery without a verified receipt.",
+  assessment:
+    "Recommend FingerSpeak for available hands/fingers, FaceSpeak for available eyes/lips/head, and SenseAssist alongside either when speech is available. All modules can be opened manually. Blind users need spoken guidance, hearing-impaired users need visible text. If no gesture can be captured, caregiver-assisted or touch communication remains necessary.",
+  facespeak:
+    "Calibrate patient captures neutral followed by three valid cycles of each available smile, lip or head movement. Eye openness and blink counts remain observational; no blink sequence proposes or confirms a request. Asha asks a question first: when calibrated, nod can mean water, a left turn-and-return can mean food, and a right turn-and-return can mean toilet help. Asha repeats the selected request and asks for a separate calibrated confirmation before notifying a caregiver. Without a suitable calibrated response, caregiver-assisted or touch communication is needed. Scores are movement features, not clinical ability. Sustained changes prompt a question, never an automatic request or diagnosis.",
+  fingerspeak:
+    "Both hands are tracked. Choose a familiar pose and its meaning, then hold, relax and repeat three times to learn. Show the saved pose to propose a request and repeat a mapped pose to confirm. No hand ability assessment blocks opening FingerSpeak. If no usable gesture is captured, suggest FaceSpeak or caregiver assistance without locking the hand interface.",
+  senseassist:
+    "Two uses: gentle phrase practice and clarification of heard words. Browser recognition produces editable transcripts; AI interpretation proposes candidate wording. Speaker confirmation is necessary. Confirmed words can be spoken aloud or sent through the caregiver request flow. Do not claim that transcript differences are a diagnosis or objective phoneme score.",
+  vitalsense:
+    "The camera samples forehead color locally for a 20-second pulse-trend window. Motion, lighting changes and weak spectral signals are rejected. It cannot measure blood pressure, oxygen saturation or temperature, and does not trigger emergencies. For health decisions use an appropriate validated device and professional advice.",
+  posture:
+    "Lightweight pose estimation shares the camera with face and both hands in every patient interface. Optional YOLO provides a second posture estimate. Shoulders must be visible; hips improve lean estimates. A minute of sustained change prompts a comfort check-in. Closed-eye/still-body then open-eye/movement is a possible wake pattern, not a sleep-stage classifier.",
+  caregiver:
+    "Use the private caregiver link from setup on the second phone. View Requests & updates and acknowledge to let the patient know. Sent means server-stored; received means the dashboard fetched it; acknowledged requires a caregiver action. Push is optional, and on iPhone requires installation to the Home Screen. Keep the dashboard open for foreground live updates. Patient camera sensing stops when the browser is backgrounded or locked.",
+};

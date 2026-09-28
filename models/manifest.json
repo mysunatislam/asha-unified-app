@@ -1,0 +1,23 @@
+{
+  "downloadedAt": "2026-09-27",
+  "files": [
+    {
+      "file": "models/pose_landmarker_lite.task",
+      "bytes": 5777746,
+      "sha256": "59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a",
+      "source": "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
+    },
+    {
+      "file": "models/yolo26n-pose.onnx",
+      "bytes": 12081961,
+      "sha256": "6ca5dc9681e0305708085715427f50779c761d5abfddaa0c38ac7c2d89b56085",
+      "source": "https://huggingface.co/onnx-community/yolo26n-pose-ONNX/resolve/main/onnx/model.onnx"
+    },
+    {
+      "file": "app/ort.wasm.min.mjs",
+      "bytes": 48259,
+      "sha256": "6ef726f355b791129f7ddf3f62e7877a16b9b777abe87004b8ab306e6b9cf265",
+      "source": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.mjs"
+    }
+  ]
+}

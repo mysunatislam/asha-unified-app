@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#f5f4ef" />
+    <title>Asha · Here with you</title>
+    <link rel="manifest" href="./app.webmanifest" />
+    <link rel="apple-touch-icon" href="./icons/asha-192.png" />
+    <link rel="icon" href="./app/icon.svg" />
+    <link rel="stylesheet" href="./app/style.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="topbar">
+      <a class="brand" href="./"
+        ><span class="brandmark">a</span
+        ><span>asha<small>NEUROBRIDGE</small></span></a
+      >
+      <div class="top-actions">
+        <span id="cloudBadge" class="pill">Your companion</span
+        ><button
+          id="themeButton"
+          class="icon-button"
+          aria-label="Switch color theme"
+        >
+          ☾</button
+        ><button id="settingsButton" class="icon-button" aria-label="Settings">
+          ⚙
+        </button>
+      </div>
+    </header>
+    <main id="main" tabindex="-1">
+      <section id="welcome" class="view welcome">
+        <div class="welcome-copy">
+          <span class="eyebrow"
+            >A LITTLE SUPPORT. A LOT MORE INDEPENDENCE.</span
+          >
+          <h1>Asha is here.<br /><em>And you’re not alone.</em></h1>
+          <p class="lead">
+            Communicate in your own way. Asha brings your voice, movements, and
+            care circle together.
+          </p>
+          <div class="actions">
+            <button id="beginSetup" class="primary">
+              Set up with a caregiver ↗</button
+            ><button id="openPatient" class="secondary">I’m a patient</button>
+          </div>
+          <button id="openCare" class="text-button">
+            Open caregiver dashboard →
+          </button>
+          <div class="welcome-note">
+            <i class="status-dot"></i>One camera. Personal guidance. Connected
+            care.
+          </div>
+        </div>
+        <div class="welcome-art">
+          <div class="orbit orbit-one"></div>
+          <div class="orbit orbit-two"></div>
+          <div class="halo"></div>
+          <img
+            class="hero-avatar"
+            src="./assets/assets/images/asha-avatar.png"
+            alt="Asha, your friendly companion"
+          />
+          <div class="floating-label label-one">✦ Your pace. Your way.</div>
+          <div class="floating-label label-two">
+            <i class="status-dot"></i> Here with you
+          </div>
+        </div>
+        <div class="welcome-bottom">
+          <span>FACE + HANDS</span><span>SPEECH SUPPORT</span
+          ><span>BODY + VITAL TRENDS</span><span>CONNECTED CAREGIVER</span>
+        </div>
+      </section>
+      <section id="setup" class="view narrow" hidden>
+        <button class="text-button" data-view="welcome">← Back</button>
+        <div class="step-label">
+          CAREGIVER SETUP <span id="stepNumber">01 / 04</span>
+        </div>
+        <h1 id="setupTitle">Let’s find their way<br />to communicate.</h1>
+        <p class="muted">
+          Choose what feels comfortable today. Recommendations never lock an
+          interface.
+        </p>
+        <form id="assessmentForm">
+          <div id="setupStep0">
+            <p class="lead">What kind of support do you need?</p>
+            <p class="muted">
+              Tell us in your own way. Choose any that fit, or skip this page. A
+              condition does not tell us what someone can do: we’ll ask about
+              comfortable movements next.
+            </p>
+            <fieldset class="support-fieldset">
+              <legend>
+                Your situation <span class="muted">(optional)</span>
+              </legend>
+              <div id="supportOptions" class="support-options"></div>
+            </fieldset>
+            <fieldset class="support-fieldset">
+              <legend>
+                What would you like help with?
+                <span class="muted">(optional)</span>
+              </legend>
+              <div id="supportGoals" class="support-options"></div>
+            </fieldset>
+            <label class="field"
+              >Anything you’d like Asha to know? (optional)
+              <textarea
+                name="supportNote"
+                maxlength="160"
+                placeholder="For example: Please speak slowly and give me time to respond."
+              ></textarea>
+            </label>
+            <p class="small muted">
+              Shared only with your care circle and, when enabled, cloud
+              assistance. Don’t include a full name, address, or medical
+              records. Nothing is saved until you agree on the review page.
+            </p>
+            <div class="setup-actions">
+              <button type="button" id="supportSkip" class="secondary">
+                Prefer not to say
+              </button>
+              <button type="button" id="supportNext" class="primary">
+                Next: comfortable movements →
+              </button>
+            </div>
+          </div>
+          <div id="setupStep1" hidden>
+            <label class="field"
+              >Patient nickname<input
+                name="label"
+                maxlength="40"
+                placeholder="Use a nickname, not a full medical identity"
+                required
+            /></label>
+            <div class="assessment-grid" id="assessmentFields"></div>
+            <div class="two-col">
+              <label class="check"
+                ><input name="canSee" type="checkbox" checked /> Can see the
+                screen</label
+              ><label class="check"
+                ><input name="canHear" type="checkbox" checked /> Can hear
+                spoken guidance</label
+              >
+            </div>
+            <div class="setup-actions">
+              <button type="button" id="supportBack" class="secondary">
+                ← About you
+              </button>
+              <button type="button" id="assessmentNext" class="primary">
+                Next: recommended support →
+              </button>
+            </div>
+          </div>
+          <div id="setupStep2" hidden>
+            <div class="card recommendation">
+              <span class="eyebrow">PERSONALIZED STARTING POINT</span>
+              <h2 id="recommendTitle"></h2>
+              <p id="recommendReason"></p>
+              <div id="recommendTags" class="tags"></div>
+              <p id="supportReview" class="small muted"></p>
+              <p class="small muted">
+                NeuroFace Sense, FingerSpeak, VitalSense and posture sensing run
+                together while support is on. SenseAssist is available whenever
+                you want speech support. No interface is locked by your answers.
+              </p>
+            </div>
+            <div class="card">
+              <h3>A familiar voice</h3>
+              <p class="muted">
+                Choose a device voice now. In Settings you can record caregiver
+                phrases on the patient’s device.
+              </p>
+              <label class="field"
+                >Voice<select name="voice" id="setupVoice"></select></label
+              ><label class="field"
+                >Speaking pace<input
+                  name="rate"
+                  type="range"
+                  min="0.65"
+                  max="1.2"
+                  step="0.05"
+                  value="0.9" /></label
+              ><button type="button" id="previewVoice" class="secondary">
+                Hear Asha
+              </button>
+            </div>
+            <label class="check"
+              ><input name="consent" type="checkbox" required /> I agree to
+              store my optional support profile, capability assessment and
+              request history for 7 days and enable cloud assistance. Assistance
+              sends this profile and typed or recognized words, not camera
+              video. I can turn cloud assistance off in Settings.</label
+            >
+            <div class="setup-actions">
+              <button type="button" id="assessmentBack" class="secondary">
+                ← Back</button
+              ><button type="submit" class="primary">
+                Create private care circle →
+              </button>
+            </div>
+          </div>
+        </form>
+        <div id="setupStep3" hidden>
+          <div class="card recommendation">
+            <span class="eyebrow">CONNECTED, IN THREE SIMPLE STEPS</span>
+            <h2>Your care circle is ready.</h2>
+            <p>
+              1. Open the patient link on the patient’s phone.<br />2. Open the
+              caregiver link on the other phone.<br />3. Send a test request and
+              acknowledge it.
+            </p>
+          </div>
+          <div id="pairLinks"></div>
+          <p class="muted small">
+            These links are private access passes. Share only with the assigned
+            caregiver. The patient ID alone does not grant access.
+          </p>
+          <div class="actions">
+            <button id="continuePatient" class="primary">
+              Open patient screen →</button
+            ><button id="continueCare" class="secondary">
+              Open caregiver screen
+            </button>
+          </div>
+        </div>
+        <p id="setupError" class="error" role="alert"></p>
+      </section>
+      <section id="patient" class="view" hidden>
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow" id="patientGreeting">YOUR SPACE</span>
+            <h1>Here with you.</h1>
+          </div>
+          <span id="connectionBadge" class="pill">Not paired</span>
+        </div>
+        <div class="patient-grid">
+          <div class="companion-card">
+            <div class="companion-top">
+              <span id="modeBadge" class="pill">Asha companion</span
+              ><button id="changeMode" class="text-button">Change ↗</button>
+            </div>
+            <div class="asha-portrait">
+              <div class="halo"></div>
+              <img src="./assets/assets/images/asha-avatar.png" alt="Asha" />
+            </div>
+            <div class="companion-message">
+              <span class="eyebrow">ASHA</span>
+              <h2 id="ashaMessage">Take your time. I’m here to help.</h2>
+              <p id="gestureHint">
+                Your caregiver can set up a comfortable way to respond.
+              </p>
+            </div>
+            <div class="actions centered">
+              <button id="startMonitoring" class="primary">
+                Start support ▷</button
+              ><button id="pauseMonitoring" class="secondary" hidden>
+                Pause camera</button
+              ><button id="quietAsha" class="secondary" type="button">
+                Pause Asha check-ins</button
+              ><button
+                id="repeatMessage"
+                class="icon-button"
+                aria-label="Repeat Asha’s message"
+              >
+                ◖))
+              </button>
+            </div>
+            <p id="monitorStatus" class="small muted">
+              Camera stays on this device. Start support to enable movement
+              sensing.
+            </p>
+            <p id="activeModules" class="small muted">
+              NeuroFace Sense · FingerSpeak · VitalSense · Posture — ready when
+              support starts.
+            </p>
+          </div>
+          <div class="needs-panel">
+            <div class="section-heading">
+              <h2>What do you need?</h2>
+              <span class="small muted">Touch or your trained gesture</span>
+            </div>
+            <div class="needs-grid">
+              <button class="need" data-need="water">
+                <span class="need-icon water">◒</span><strong>Water</strong
+                ><span>A drink, please</span></button
+              ><button class="need" data-need="toilet">
+                <span class="need-icon violet">↗</span><strong>Toilet</strong
+                ><span>I need assistance</span></button
+              ><button class="need" data-need="comfort">
+                <span class="need-icon peach">♡</span><strong>Comfort</strong
+                ><span>Help me feel better</span></button
+              ><button class="need" data-need="help">
+                <span class="need-icon green">⌁</span><strong>Caregiver</strong
+                ><span>Please come here</span>
+              </button>
+            </div>
+            <div class="card latest-request">
+              <span class="eyebrow">YOUR CARE CIRCLE</span>
+              <p id="latestRequest">No requests yet.</p>
+              <button id="testRequest" class="text-button">
+                Send a connection test →
+              </button>
+            </div>
+            <button id="detailsButton" class="details-link">
+              <span
+                ><strong>Details</strong
+                ><small>Live signals, modules & calibration</small></span
+              ><span>↗</span>
+            </button>
+          </div>
+        </div>
+      </section>
+      <section id="details" class="view" hidden>
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">ONLY THE DETAILS YOU NEED</span>
+            <h1>Your sensing studio.</h1>
+            <p id="detailAshaMessage" class="small muted">Asha will explain this page aloud when support starts.</p>
+          </div>
+          <button data-view="patient" class="secondary">
+            ← Patient screen
+          </button>
+        </div>
+        <div class="studio-layout">
+          <aside class="camera-panel card">
+            <div class="section-heading">
+              <h3>Shared camera</h3>
+              <span id="fpsBadge" class="pill">Paused</span>
+            </div>
+            <div class="camera-viewport">
+              <video id="camera" muted autoplay playsinline></video
+              ><canvas id="overlay"></canvas>
+              <div id="cameraPlaceholder">
+                Start support to see live tracking.
+              </div>
+            </div>
+            <p id="cameraStatus" class="small muted">
+              Face + both hands + body posture · one stream
+            </p>
+            <div class="actions">
+              <button id="studioStart" class="primary">Start camera</button
+              ><button id="calibrateButton" class="secondary">
+                Calibrate patient
+              </button>
+            </div>
+            <div id="liveSummary" class="detail-summary"></div>
+            <button id="moduleAdvice" class="text-button">
+              Ask Asha about this module →
+            </button>
+          </aside>
+          <div class="module-panel">
+            <nav id="moduleTabs" class="tabs" aria-label="Sensing modules">
+              <button data-module="facespeak">
+                FaceSpeak · NeuroFace Sense</button
+              ><button data-module="fingerspeak">FingerSpeak</button
+              ><button data-module="vitalsense">VitalSense</button
+              ><button data-module="senseassist">SenseAssist</button
+              ><button data-module="posture">Posture</button>
+            </nav>
+            <div id="fingerStudioHost" hidden></div>
+            <div id="moduleContent"></div>
+          </div>
+        </div>
+      </section>
+      <section id="caregiver" class="view" hidden>
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">YOUR CARE CIRCLE</span>
+            <h1>Care, in the loop.</h1>
+          </div>
+          <button id="addPatient" class="primary">+ Add patient</button>
+        </div>
+        <div class="care-grid">
+          <aside class="card">
+            <div class="section-heading">
+              <h2>Patients</h2>
+              <span id="patientCount" class="pill">0</span>
+            </div>
+            <div id="patientList"></div>
+            <button id="importCareLink" class="text-button">
+              Paste private caregiver link →
+            </button>
+            <div class="divider"></div>
+            <button id="enableNotifications" class="secondary">
+              Enable notifications
+            </button>
+            <p class="small muted">
+              For iPhone background notifications, add this app to the Home
+              Screen first. Live dashboard updates work while open.
+            </p>
+          </aside>
+          <div>
+            <div id="careStatus" class="card care-status">
+              <h2>Select a patient</h2>
+              <p class="muted">
+                Their requests and live status will appear here.
+              </p>
+            </div>
+            <div class="section-heading request-heading">
+              <h2>Requests & updates</h2>
+              <span id="careConnection" class="pill">Connecting</span>
+            </div>
+            <div id="eventList"></div>
+            <button id="careAdvice" class="text-button">
+              Ask Asha for guidance →
+            </button>
+          </div>
+        </div>
+      </section>
+      <section id="settings" class="view narrow" hidden>
+        <button id="settingsBack" class="text-button">← Back</button
+        ><span class="eyebrow">MAKE YOURSELF AT HOME</span>
+        <h1>Your preferences.</h1>
+        <div class="card">
+          <h2>Comfort & access</h2>
+          <label class="check"
+            ><input id="cloudConsent" type="checkbox" /> Enable Asha cloud
+            assistance for text and speech transcripts</label
+          >
+          <p class="small muted">
+            Camera video stays local. AI suggestions are reviewed before they
+            become a request.
+          </p>
+          <label class="check"
+            ><input id="proactive" type="checkbox" checked /> Asha's spoken
+            guidance and proactive check-ins</label
+          ><label class="check"
+            ><input id="autoScan" type="checkbox" /> Hands-free need scanning
+            (uses your calibrated confirmation gesture)</label
+          ><p class="small muted">While support is active, Asha introduces each page, offers a check-in about every two minutes, and responds to sustained changes. She waits for a calibrated answer and a separate confirmation before sending a caregiver request. Pause check-ins any time.</p
+          ><label class="field"
+            >Spoken voice<select id="voiceSelect"></select></label
+          ><label class="field"
+            >Speaking pace<input
+              id="voiceRate"
+              type="range"
+              min="0.65"
+              max="1.2"
+              step="0.05"
+              value="0.9" /></label
+          ><button id="testVoice" class="secondary">Preview voice</button>
+        </div>
+        <div class="card">
+          <h2>A familiar caregiver voice</h2>
+          <p class="muted">
+            Record a short phrase on this device. Asha plays it for that phrase;
+            new conversation uses your selected device voice. This does not
+            clone anyone’s voice.
+          </p>
+          <label class="field"
+            >Phrase<select id="recordPhrase">
+              <option value="welcome">
+                I’m here with you. Do you need anything?
+              </option>
+              <option value="water">Do you need water?</option>
+              <option value="toilet">Do you need to go to the toilet?</option>
+              <option value="caregiver">
+                Would you like me to contact your caregiver?
+              </option>
+            </select></label
+          >
+          <div class="actions">
+            <button id="recordVoice" class="secondary">Record voice</button
+            ><button id="stopVoice" class="secondary" hidden>Stop & save</button
+            ><button id="playVoice" class="secondary">Play recording</button>
+          </div>
+          <p id="voiceRecordStatus" class="small muted"></p>
+        </div>
+        <div class="card">
+          <h2>Privacy & session</h2>
+          <p class="muted">
+            Seven-day private care circle. No camera recording or automatic
+            telephone calls. Keep the patient page open for sensing; mobile
+            browsers stop camera monitoring when locked or backgrounded.
+          </p>
+          <button id="editAssessment" class="secondary">
+            Review assessment</button
+          ><button id="forgetDevice" class="text-button">
+            Forget this device’s session
+          </button>
+        </div>
+      </section>
+    </main>
+    <nav id="bottomNav" class="bottom-nav" aria-label="Main navigation" hidden>
+      <button data-view="patient"><span>⌂</span>Patient</button
+      ><button data-view="details"><span>▥</span>Details</button
+      ><button data-view="caregiver"><span>♡</span>Care circle</button>
+    </nav>
+    <div id="ashaBubble" class="asha-bubble">
+      <button id="bubbleHandle" aria-label="Open Asha chat; drag to move">
+        <img src="./assets/assets/images/asha-avatar.png" alt="" /><span
+          class="bubble-dot"
+        ></span>
+      </button>
+    </div>
+    <section
+      id="chatPanel"
+      class="chat-panel card"
+      aria-label="Asha companion"
+      hidden
+    >
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">ASHA</span>
+          <h2>Your companion</h2>
+        </div>
+        <button id="closeChat" class="icon-button" aria-label="Close chat">
+          ×
+        </button>
+      </div>
+      <div id="chatMessages" class="chat-messages" aria-live="polite">
+        <p class="chat-asha">
+          I’m here. Ask me for guidance, a little company, or help using any
+          module.
+        </p>
+      </div>
+      <form id="chatForm">
+        <label class="sr-only" for="chatInput">Message Asha</label
+        ><input
+          id="chatInput"
+          maxlength="600"
+          placeholder="Talk to Asha…"
+          required
+        /><button class="primary" aria-label="Send message">↑</button>
+      </form>
+    </section>
+    <dialog id="confirmDialog">
+      <span class="eyebrow">LET’S MAKE SURE</span>
+      <h2 id="confirmText"></h2>
+      <p id="confirmHint">Send this request to your caregiver?</p>
+      <div class="actions">
+        <button id="confirmYes" class="primary">Yes, send request</button
+        ><button id="confirmNo" class="secondary">Not now</button>
+      </div>
+    </dialog>
+    <dialog id="calibrationDialog">
+      <span class="eyebrow">LIVE, PERSONAL CALIBRATION</span>
+      <h2 id="calibrationTitle">Get comfortable.</h2>
+      <p id="calibrationInstruction"></p>
+      <progress id="calibrationProgress" max="1" value="0"></progress>
+      <p id="calibrationStatus" role="status">Waiting for a tracked face…</p>
+      <div class="actions">
+        <button id="skipCalibration" class="secondary">
+          Skip this movement</button
+        ><button id="endCalibration" class="text-button">Cancel</button>
+      </div>
+    </dialog>
+    <dialog id="linkDialog">
+      <h2>Open your private link</h2>
+      <p>Paste the complete link shared during caregiver setup.</p>
+      <label class="field"
+        >Private access link<input id="linkInput" type="url" autocomplete="off"
+      /></label>
+      <p id="linkError" class="error"></p>
+      <div class="actions">
+        <button id="loadLink" class="primary">Connect</button
+        ><button id="cancelLink" class="secondary">Cancel</button>
+      </div>
+    </dialog>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <script src="./neuroface/utils/landmarks.js"></script>
+    <script src="./neuroface/utils/metrics.js"></script>
+    <script src="./neuroface/src/vision.js"></script>
+    <script src="./neuroface/src/engine.js"></script>
+    <script src="./neuroface/src/calibration.js"></script>
+    <script src="./neuroface/src/activity.js"></script>
+    <script src="./neuroface/src/lip-watch.js"></script>
+    <script src="./neuroface/src/fingerspeak-signal.js"></script>
+    <script type="module" src="./app/main.js"></script>
+  </body>
+</html>
