@@ -45,10 +45,12 @@
             care circle together.
           </p>
           <div class="actions">
-            <button id="beginSetup" class="primary">
-              Set up with a caregiver ↗</button
-            ><button id="openPatient" class="secondary">I’m a patient</button>
+            <button id="exploreDemo" class="primary">Explore live demo ↗</button
+            ><button id="beginSetup" class="secondary">
+              Set up with a caregiver</button
+            ><button id="openPatient" class="text-button">I have a patient link</button>
           </div>
+          <p class="small muted">Explore the live modules now. Camera access starts when you tap Start support. A caregiver link is only needed to test alerts on another device.</p>
           <button id="openCare" class="text-button">
             Open caregiver dashboard →
           </button>
@@ -302,6 +304,7 @@
             <div class="card latest-request">
               <span class="eyebrow">YOUR CARE CIRCLE</span>
               <p id="latestRequest">No requests yet.</p>
+              <button class="text-button" data-demo-care-link hidden>Copy demo caregiver link →</button>
               <button id="testRequest" class="text-button">
                 Send a connection test →
               </button>
@@ -321,10 +324,12 @@
             <span class="eyebrow">ONLY THE DETAILS YOU NEED</span>
             <h1>Your sensing studio.</h1>
             <p id="detailAshaMessage" class="small muted">Asha will explain this page aloud when support starts.</p>
+            <p id="demoNotice" class="small muted" hidden></p>
           </div>
-          <button data-view="patient" class="secondary">
-            ← Patient screen
-          </button>
+          <div class="page-heading-actions">
+            <button class="text-button" data-demo-care-link hidden>Copy demo caregiver link →</button>
+            <button data-view="patient" class="secondary">← Patient screen</button>
+          </div>
         </div>
         <div class="studio-layout">
           <aside class="camera-panel card">

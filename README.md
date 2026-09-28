@@ -5,14 +5,19 @@ A new application built from the preserved `neurobridge-asha-unified-web` assets
 ## Live application
 
 - Patient / caregiver setup: https://neurobridge-asha-live.vercel.app/
+- Direct FaceSpeak demo: https://neurobridge-asha-live.vercel.app/?module=facespeak
 - Caregiver dashboard: https://neurobridge-asha-live.vercel.app/?role=caregiver
 - New source repository: https://github.com/mysunatislam/neurobridge-asha-unified-app
+
+## Explore without a patient link
+
+Choose **Explore live demo** on the first page or open a direct `?module=` link. FaceSpeak, FingerSpeak, VitalSense, SenseAssist and posture are all available in Details. Tap **Start camera** to run the actual models; guided calibration can be tried there. A generic demo care circle is created automatically when the service is available, so Asha chat and confirmed caregiver requests can also be tested without pasting credentials. Cloud chat asks for consent before sending words. To test delivery on another phone, use **Copy demo caregiver link**. If the service is down, local sensing still opens and the page identifies the missing cloud connection.
 
 ## Two-phone walkthrough
 
 1. Open the main link and choose **Set up with a caregiver**. On **Tell Asha about you**, optionally choose support needs or skip. Next select actual capabilities, including vision, hearing and speech. Speech support is suggested alongside other viable modes, not instead of them.
 2. Select **Next**, review the recommendation, and create a private care circle.
-3. Copy the **patient link** to the patient's phone and the **caregiver link** to the caregiver's phone. An ID alone cannot authorize access.
+3. If the setup was completed on the patient phone, stay there; no patient link is needed. Copy the **caregiver link** to the other phone. If setup was completed elsewhere, use the patient link on the patient phone. An ID alone cannot authorize access.
 4. On the patient phone choose **Start support**. Open **Details → FaceSpeak · NeuroFace Sense** for the full facial dashboard. Relax with eyes open briefly to learn the observation reference, then choose **Calibrate patient** for measured gesture calibration; unsupported movements can be skipped. FingerSpeak opens its complete two-hand calibration, speaking and evaluation studio on the same camera.
 5. Tap Water, confirm, then acknowledge on the caregiver phone. The patient sees Sent → Received → Acknowledged. The same request flow is used for trained gestures and confirmed speech.
 6. The caregiver can enable push notifications. On iOS, install the page to the Home Screen first. Foreground dashboard polling works without push. Allow sound on the patient device with an initial touch.
@@ -24,7 +29,7 @@ A new application built from the preserved `neurobridge-asha-unified-web` assets
 - Optional “Tell Asha about you” setup: accident-related voice loss, ALS, stroke recovery, cerebral palsy, older-adult support, locked-in syndrome, autism, temporary voice loss or another reason. Multiple choices, goals, and skip are supported. This self-described context is editable by the caregiver and is never used to infer or limit capabilities.
 - NeuroFace Sense (including FaceSpeak calibration), FingerSpeak, VitalSense and posture remain enabled together on the shared camera, regardless of the open details tab. Live status distinguishes tracked signals from searching or weak signals. Facial expression values are model signals, never a percentage of the patient's ability.
 - One camera stream shared by face, two independent hands, local forehead color-pulse sampling, and body pose. Face/pose and hand processing use independently backpressured workers where supported, with GPU/CPU and compatible single-worker/foreground fallbacks. FingerSpeak receives priority hand sampling during calibration or live use without opening another camera.
-- FaceSpeak: measured neutral baseline; three observed repetitions per selected blink/smile/pucker/nod/head-turn skill; only captured skills enabled; no timer-only gesture enrollment. Triple deliberate blink proposes water. Three left-return cycles propose food; right-return cycles propose toilet. A long trained pucker proposes comfort. Confirmation is a separately completed, trained gesture or touch.
+- FaceSpeak: measured neutral baseline; practiced rapid triple blink and separate longer confirmation blink for eye-only communication; three observed repetitions for selected smile/pucker/nod/head-turn skills; only captured skills enabled. Asha asks before a caregiver request is sent. Normal blink counts never send requests.
 - NeuroFace details restore the original neutral-relative AU geometry for eyebrow raise/lowering, cheek raise, smile, lip stretch and lip opening; bilateral eye/smile measurements; yaw/pitch/roll and nod state; motion curves; and an exportable observation log. The original blink/smile/head state machines and calibrated thresholds are preserved. Signal consistency is not a motor-ability score.
 - The visible blink count follows completed bilateral dips and recoveries in the same raw EAR signal as the curve, using a recent open-eye reference rather than a stale maximum or saved camera baseline. Tracking gaps, isolated spikes, winks and held closures are rejected. These observed blinks never emit FaceSpeak commands; deliberate calibrated request recognition stays separate.
 - FingerSpeak: the original full two-hand interface, real recorded samples, guided calibration, temporal model training, prototype/DTW comparison, held-out evaluation, probability curves, and live intent/release gating. Its model and samples are scoped to the patient and retained when moving between pages. Familiar-pose three-hold mappings remain an optional shortcut. Assessment never blocks this module.

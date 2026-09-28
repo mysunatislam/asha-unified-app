@@ -80,7 +80,20 @@ let view = "welcome",
   speechHeard = "",
   speechSession = 0;
 let fingerNeuralLive = false,
-  personalProfileId = null;
+  personalProfileId = null,
+  demoSession = read("demoPatientId", "") === patient?.patientId && !!patient;
+const demoAssessment = {
+  leftHand: "reliable", rightHand: "reliable", wrist: "reliable",
+  fingers: "reliable", eyes: "reliable", lips: "reliable",
+  head: "reliable", speech: "limited", canSee: true, canHear: true,
+};
+const demoProfile = {
+  patientId: "local-demo", label: "Demo patient", assessment: demoAssessment,
+  supportContext: { categories: [], goals: [], note: "" },
+  recommendation: { primary: "facespeak", suggested: ["facespeak", "fingerspeak", "senseassist"] },
+  voice: { name: "", rate: 0.9 },
+};
+const personalId = () => patient?.patientId || profile?.patientId || "local-demo";
 function ensureFingerStudio() {
   if ($("fingerStudio")) return;
   const frame = document.createElement("iframe");
@@ -192,12 +205,8 @@ function theme() {
 theme();
 function show(id) {
   if (!$(id)) return;
-  if (id === "patient" && !patient) {
-    openLink("patient");
-    return;
-  }
-  if (id === "details" && !patient) {
-    openLink("patient");
+  if (["patient", "details"].includes(id) && !profile) {
+    startDemo(id === "details" ? module : null);
     return;
   }
   if (id === "caregiver" && perception.running) {
@@ -224,7 +233,11 @@ function show(id) {
     pollPatient();
     heartbeat();
   }
-  if (previousView !== id) { guide.clear(); cancelRequest(); }
+  if (previousView !== id) {
+    guide.clear();
+    cancelRequest();
+    $("chatPanel").hidden = true;
+  }
   if (profile && settings.proactive && previousView !== id && ["patient", "details", "settings"].includes(id)) {
     const description = id === "patient"
       ? "This is your patient page. I will explain your choices aloud after support starts. You can repeat my last message at any time."
@@ -247,6 +260,7 @@ $("settingsButton").onclick = () => show("settings");
 $("settingsBack").onclick = () =>
   show(previousView === "settings" ? "patient" : previousView);
 $("beginSetup").onclick = $("addPatient").onclick = () => startSetup();
+$("exploreDemo").onclick = () => startDemo("facespeak");
 $("openPatient").onclick = () =>
   patient ? openPatient() : openLink("patient");
 $("openCare").onclick = () => show("caregiver");
@@ -315,6 +329,7 @@ async function acceptLink(c) {
   if (c.role === "patient") {
     patient = { patientId: c.patientId, token: c.token };
     save("patient", patient);
+    demoSession = read("demoPatientId", "") === c.patientId;
     profile = d.profile;
     loadPersonal();
     renderPatient();
@@ -360,7 +375,7 @@ async function copy(text) {
   }
 }
 function loadPersonal() {
-  if (personalProfileId !== patient?.patientId) {
+  if (personalProfileId !== personalId()) {
     // Never reuse another patient's trained model or pending request.
     if (personalProfileId && perception.running) {
       perception.stop();
@@ -379,10 +394,10 @@ function loadPersonal() {
     $("confirmDialog").close();
     guide.clear();
     guide.lastPrompt = -Infinity;
-    personalProfileId = patient?.patientId;
+    personalProfileId = personalId();
   }
-  trained = read("calibration_" + patient?.patientId, null);
-  handMaps = read("handmap_" + patient?.patientId, {});
+  trained = read("calibration_" + personalId(), null);
+  handMaps = read("handmap_" + personalId(), {});
   perception.setCalibration(trained?.baseline, trained?.enabled || []);
   blinkIntent = new BlinkIntent(trained?.baseline?.blinkIntent);
 }
@@ -394,9 +409,61 @@ async function openPatient() {
     renderPatient();
     show("patient");
   } catch (e) {
-    toast(e.message);
-    openLink("patient");
+    if (demoSession || new URL(location.href).searchParams.has("module")) {
+      patient = null;
+      profile = null;
+      $("linkDialog").close();
+      await startDemo(new URL(location.href).searchParams.get("module") || "facespeak");
+    } else {
+      toast(e.message);
+      openLink("patient");
+    }
   }
+}
+let startingDemo = null;
+async function startDemo(requestedModule = "facespeak") {
+  if (startingDemo) return startingDemo;
+  if (patient && profile) {
+    if (requestedModule) module = requestedModule;
+    show(requestedModule ? "details" : "patient");
+    return;
+  }
+  startingDemo = (async () => {
+    $("exploreDemo").disabled = true;
+    $("exploreDemo").textContent = "Opening demo…";
+    try {
+      const d = await call("session", {
+        cred: null,
+        body: { action: "create", label: "Demo patient", assessment: demoAssessment,
+          supportContext: demoProfile.supportContext, voice: demoProfile.voice },
+      });
+      patient = { patientId: d.patientId, token: d.patientToken };
+      save("patient", patient);
+      save("demoPatientId", d.patientId);
+      profile = d;
+      demoSession = true;
+      careId = d.patientId;
+      carePatients = carePatients.filter((x) => x.patientId !== d.patientId);
+      carePatients.push({ patientId: d.patientId, token: d.caregiverToken,
+        patientToken: d.patientToken, label: d.label });
+      save("care", carePatients);
+    } catch {
+      // Local sensing remains available if the session service is unreachable.
+      patient = null;
+      profile = demoProfile;
+      demoSession = true;
+      toast("Local demo opened. Cloud chat and caregiver delivery need a connection.");
+    } finally {
+      $("exploreDemo").disabled = false;
+      $("exploreDemo").textContent = "Explore live demo ↗";
+    }
+    loadPersonal();
+    renderPatient();
+    if (requestedModule) module = requestedModule;
+    $("modeBadge").textContent = names[module];
+    show(requestedModule ? "details" : "patient");
+  })();
+  try { await startingDemo; } finally { startingDemo = null; }
 }
 const fields = {
   leftHand: "Left hand",
@@ -550,6 +617,7 @@ $("assessmentForm").onsubmit = async (e) => {
     }
     patient = { patientId: d.patientId, token: d.patientToken };
     save("patient", patient);
+    demoSession = false;
     profile = d;
     careId = d.patientId;
     const c = {
@@ -651,9 +719,21 @@ function renderPatient() {
       : profile.recommendation?.primary || "facespeak";
   $("modeBadge").textContent = names[module];
   $("gestureHint").textContent = confirmationHint();
-  $("connectionBadge").textContent = "Care circle connected";
+  $("connectionBadge").textContent = demoSession
+    ? patient ? "Demo care circle ready" : "Local demo"
+    : "Care circle connected";
+  $("demoNotice").hidden = !demoSession;
+  $("demoNotice").textContent = patient
+    ? "Demo session. Explore every module; camera models run locally. Copy the caregiver link if you want to test delivery on another device."
+    : "Local demo. Live sensing and calibration work here; AI chat and caregiver delivery need a connection.";
+  for (const b of document.querySelectorAll("[data-demo-care-link]"))
+    b.hidden = !demoSession || !patient || !carePatients.some((x) => x.patientId === patient.patientId && x.token);
   updateQuietAsha();
 }
+document.querySelectorAll("[data-demo-care-link]").forEach((b) => b.onclick = () => {
+  const c = carePatients.find((x) => x.patientId === patient?.patientId);
+  if (c?.token) copy(privateLink("caregiver", c.patientId, c.token));
+});
 function updateQuietAsha() {
   $("quietAsha").textContent = settings.proactive ? "Pause Asha check-ins" : "Resume Asha check-ins";
   $("quietAsha").setAttribute("aria-pressed", String(!settings.proactive));
@@ -730,7 +810,7 @@ async function startMonitor() {
     return;
   }
   if (!profile) {
-    toast("Open your patient link first.");
+    toast("Open the live demo or set up a care circle first.");
     return;
   }
   // Speak inside the caregiver's Start tap, before permission/model awaits.
@@ -770,8 +850,8 @@ perception.addEventListener("status", (e) => {
   $("cameraStatus").textContent = e.detail;
 });
 function propose(kind, source = "touch", text = needs[kind]) {
-  if (!patient) {
-    toast("Connect a patient first.");
+  if (!profile) {
+    toast("Open the live demo first.");
     return;
   }
   const p = gate.propose(kind, text, source, performance.now());
@@ -821,6 +901,11 @@ async function confirmRequest() {
 }
 $("confirmYes").onclick = confirmRequest;
 async function sendEvent(kind, source, text, confirmed) {
+  if (!patient) {
+    $("latestRequest").textContent = `${text} · recognized in this local demo. Caregiver delivery needs a connection.`;
+    say("I recognized your request on this device. A caregiver connection is needed to deliver it.");
+    return;
+  }
   const event = {
     id: crypto.randomUUID(),
     action: "event",
@@ -936,7 +1021,7 @@ perception.addEventListener("hand", ({ detail: h }) => {
         kind: pendingHandTraining.kind,
         trained: true,
       };
-      save("handmap_" + patient.patientId, handMaps);
+      save("handmap_" + personalId(), handMaps);
       pendingHandTraining = null;
       if ($("handTrainStatus"))
         $("handTrainStatus").textContent =
@@ -1000,7 +1085,7 @@ perception.addEventListener("frame", ({ detail: s }) => {
         enabled: calibration.enabled,
         savedAt: new Date().toISOString(),
       };
-      save("calibration_" + patient.patientId, trained);
+      save("calibration_" + personalId(), trained);
       perception.setCalibration(trained.baseline, trained.enabled);
       blinkIntent = new BlinkIntent(trained.baseline?.blinkIntent);
       calibration = null;
@@ -1057,7 +1142,7 @@ $("skipCalibration").onclick = () => {
       enabled: calibration.enabled,
       savedAt: new Date().toISOString(),
     };
-    save("calibration_" + patient.patientId, trained);
+    save("calibration_" + personalId(), trained);
     perception.setCalibration(trained.baseline, trained.enabled);
     blinkIntent = new BlinkIntent(trained.baseline?.blinkIntent);
     calibration = null;
@@ -1120,7 +1205,7 @@ async function pollPatient() {
           ". You can still choose any interface.",
       );
     }
-    $("connectionBadge").textContent = "Connected";
+    $("connectionBadge").textContent = demoSession ? "Demo care circle ready" : "Connected";
     if (d.events[0]) {
       const e = d.events[0],
         state = e.receipt?.acknowledgedAt
@@ -1284,7 +1369,7 @@ function openChat() {
 $("closeChat").onclick = () => ($("chatPanel").hidden = true);
 async function askAsha(text, options = {}) {
   if (!credential())
-    throw Error("Connect a private patient or caregiver session first.");
+    throw Error("The local demo cannot reach Asha cloud right now. Live camera modules still work; retry when connected.");
   if (!settings.cloud) {
     if (
       !confirm(
@@ -1297,7 +1382,7 @@ async function askAsha(text, options = {}) {
   }
   const learned =
     options.mode === "interpret"
-      ? read("speech_" + patient?.patientId, [])
+      ? read("speech_" + personalId(), [])
           .slice(-2)
           .map((x) => `${x.heard} → ${x.confirmed}`)
           .join("; ")
@@ -1499,7 +1584,7 @@ setInterval(() => {
     voiceBusy()
   )
     return;
-  const memory = read("preferences_" + patient.patientId, {}),
+  const memory = read("preferences_" + personalId(), {}),
     keys = ["water", "toilet", "comfort", "help"].sort(
       (a, b) => (memory[b] || 0) - (memory[a] || 0),
     );
@@ -1886,9 +1971,9 @@ function wireSpeech() {
         `<div class="divider"></div><span class="eyebrow">POSSIBLE MEANING · PLEASE CONFIRM</span><p class="speech-result">${esc(d.candidate)}</p><p>${esc(d.question)}</p>${d.alternatives.map((x) => `<button class="secondary" data-alternative="${esc(x)}">${esc(x)}</button>`).join("")}<div class="actions"><button id="speakCandidate" class="primary">Yes, speak this</button><button id="sendCandidate" class="secondary">Send to caregiver</button><button id="retrySpeech" class="text-button">That’s not right</button></div>`;
       $("speakCandidate").onclick = () => {
         say(speechCandidate, { force: true });
-        const memory = read("speech_" + patient?.patientId, []);
+        const memory = read("speech_" + personalId(), []);
         memory.push({ heard: speechHeard, confirmed: speechCandidate });
-        save("speech_" + patient?.patientId, memory.slice(-30));
+        save("speech_" + personalId(), memory.slice(-30));
         toast("Confirmed wording saved on this device.");
       };
       $("sendCandidate").onclick = () =>
@@ -1932,6 +2017,8 @@ async function initialize() {
       show("caregiver");
     else if (patient) await openPatient();
     const requestedModule = u.searchParams.get("module");
+    if (!profile && ["facespeak", "fingerspeak", "vitalsense", "senseassist", "posture"].includes(requestedModule))
+      await startDemo(requestedModule);
     if (
       profile &&
       view !== "caregiver" &&
@@ -1953,9 +2040,9 @@ async function initialize() {
   fetch(new URL("health", api))
     .then((r) => r.json())
     .then((d) => {
-      $("cloudBadge").textContent = d.cloudConfigured
-        ? "Asha ready"
-        : "Local support";
+      $("cloudBadge").textContent = demoSession && !patient
+        ? "Local demo"
+        : d.cloudConfigured ? "Asha ready" : "Local support";
     })
     .catch(() => ($("cloudBadge").textContent = "Local support"));
 }

@@ -611,6 +611,21 @@ em {
 .page-heading .eyebrow {
   margin-bottom: 8px;
 }
+#details .page-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.page-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+@media (max-width: 700px) {
+  #details .page-heading { grid-template-columns: 1fr; }
+  .page-heading-actions { justify-content: flex-start; }
+}
 .patient-grid {
   display: grid;
   grid-template-columns: 1.1fr 1fr;
