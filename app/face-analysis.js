@@ -72,8 +72,9 @@ export class FaceAnalysis {
       Math.abs(M.lipDeviation(lm, 0)) < 0.035 &&
       Math.abs(M.lipAsymmetry(lm, null)) < 0.04;
     let au;
-    if (this.activity.baseline || (still && relaxed))
-      au = this.activity.update(lm);
+    const browReliable = eye.state === "OPEN" && Math.max(f.eyeBlinkLeft, f.eyeBlinkRight) < 0.25;
+    if (this.activity.baseline || (still && relaxed && browReliable))
+      au = this.activity.update(lm, { aspect: f.imageAspect || 1, browReliable });
     else
       au = {
         ready: false,

@@ -3,6 +3,7 @@ import { GuidedCalibration } from "./calibration.js";
 import { faceStudio, paintFaceStudio } from "./face-studio.js";
 import { RequestGate, recommendations, clamp } from "./signals.js";
 import { CompanionGuide, responsePlan, confirmationMatches } from "./companion-guide.js";
+import { BlinkIntent, RAPID_BLINK, CONFIRM_BLINK } from "./blink-intent.js";
 import {
   supportOptions,
   supportGoals,
@@ -44,7 +45,7 @@ const names = {
   posture: "Body posture",
 };
 const moduleGuidance = {
-  facespeak: "FaceSpeak shows your live eyes, eyebrows, smile, lips and head movement. Blinks are observations only. A caregiver can calibrate a comfortable head or smile response here.",
+  facespeak: "FaceSpeak shows your live eyes, eyebrows, smile, lips and head movement. A caregiver can calibrate a head, smile or deliberate blink response here. A practiced triple blink asks for help; a separate deliberate blink confirms after my question.",
   fingerspeak: "FingerSpeak can preview one or two hands. To speak personalized phrases, record and test your own gestures in the FingerSpeak studio.",
   vitalsense: "VitalSense shows an experimental camera pulse trend. It is not a medical vital reading and never sends an emergency request.",
   senseassist: "SenseAssist can help clarify speech that was hard to understand. Review what was heard before Asha suggests a possible meaning.",
@@ -164,7 +165,9 @@ const conversation = [];
 const gate = new RequestGate(),
   guide = new CompanionGuide(),
   perception = new Perception($("camera"), $("overlay"));
-let wakeTimer,
+let blinkIntent = new BlinkIntent(trained?.baseline?.blinkIntent),
+  speechVersion = 0,
+  wakeTimer,
   scanIndex = -1,
   scanKind = null,
   lastProactive = -Infinity;
@@ -221,7 +224,7 @@ function show(id) {
     pollPatient();
     heartbeat();
   }
-  if (previousView !== id) guide.clear();
+  if (previousView !== id) { guide.clear(); cancelRequest(); }
   if (profile && settings.proactive && previousView !== id && ["patient", "details", "settings"].includes(id)) {
     const description = id === "patient"
       ? "This is your patient page. I will explain your choices aloud after support starts. You can repeat my last message at any time."
@@ -381,6 +384,7 @@ function loadPersonal() {
   trained = read("calibration_" + patient?.patientId, null);
   handMaps = read("handmap_" + patient?.patientId, {});
   perception.setCalibration(trained?.baseline, trained?.enabled || []);
+  blinkIntent = new BlinkIntent(trained?.baseline?.blinkIntent);
 }
 async function openPatient() {
   try {
@@ -602,23 +606,26 @@ if ("speechSynthesis" in window) {
   voiceList();
   speechSynthesis.onvoiceschanged = voiceList;
 }
-function say(text, { recording, force = false } = {}) {
+function say(text, { recording, force = false, onDone, onError } = {}) {
+  const version = ++speechVersion;
   $("ashaMessage").textContent = text;
   $("detailAshaMessage").textContent = "Asha: " + text;
-  if (!force && profile?.assessment?.canHear === false) return;
+  if (!force && profile?.assessment?.canHear === false) { onDone?.(); return; }
   const saved = recording && read("voice_" + recording, null);
   if (saved) {
     if ("speechSynthesis" in window) speechSynthesis.cancel();
     new Audio(saved).play().catch(() => {});
     return;
   }
-  if (!("speechSynthesis" in window)) return;
+  if (!("speechSynthesis" in window)) { onDone?.(); return; }
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text),
     chosen = settings.voice || profile?.voice?.name;
   u.voice = speechSynthesis.getVoices().find((x) => x.name === chosen) || null;
   u.rate = settings.rate || profile?.voice?.rate || 0.9;
   u.pitch = profile?.voice?.pitch || 1;
+  u.onend = () => { if (version === speechVersion) onDone?.(); };
+  u.onerror = () => { if (version === speechVersion) onError?.(); };
   speechSynthesis.speak(u);
 }
 function voiceBusy() {
@@ -627,13 +634,13 @@ function voiceBusy() {
 $("previewVoice").onclick = () => {
   const old = settings.voice;
   settings.voice = $("setupVoice").value;
-  say("I’m Asha. I’ll guide the patient aloud, describe each page, and give time to respond. Blinking will never send a request.", {
+  say("I'm Asha. I'll guide the patient aloud, describe each page, and give time to respond. We can calibrate deliberate blink communication when head or smile movement isn't available. I'll ask for confirmation before sending a request.", {
     force: true,
   });
   settings.voice = old;
 };
 $("setupVoice").onchange = () => $("previewVoice").click();
-$("repeatMessage").onclick = () => say($("ashaMessage").textContent);
+$("repeatMessage").onclick = () => gate.pending ? speakConfirmation(gate.pending) : say($("ashaMessage").textContent);
 function renderPatient() {
   if (!profile) return;
   $("patientGreeting").textContent =
@@ -660,6 +667,7 @@ $("quietAsha").onclick = () => {
     if (perception.running) guideCheckIn("routine");
     else say("I'm ready to guide you again. Start support when you are comfortable.");
   } else {
+    speechVersion++;
     if ("speechSynthesis" in window) speechSynthesis.cancel();
     $("ashaMessage").textContent = "Asha's check-ins are paused. Requests and caregiver messages still work.";
     $("detailAshaMessage").textContent = "Asha: " + $("ashaMessage").textContent;
@@ -667,11 +675,12 @@ $("quietAsha").onclick = () => {
 };
 function confirmationHint() {
   const plan = responsePlan(profile?.assessment, trained?.enabled);
-  if (plan.mode === "menu") return "Nod and return to center once more to confirm. A blink will not send anything.";
-  if (plan.mode === "yes") return "Please " + plan.verb + " once more to confirm. A blink will not send anything.";
+  if (gate.pending?.source === "deliberate blink" || plan.mode === "blink") return "Wait until I finish speaking, keep your eyes open briefly, then make one deliberate blink: close a little longer than your quick blinks and reopen, as practiced. Do nothing to cancel.";
+  if (plan.mode === "menu") return "Nod and return to center once more to confirm.";
+  if (plan.mode === "yes") return "Please " + plan.verb + " once more to confirm.";
   if (Object.values(handMaps).some((x) => x?.trained))
-    return "Repeat your personalized hand gesture to confirm. A blink will not send anything.";
-  return "A caregiver can calibrate a comfortable response in Details. Touch confirmation is also available. Blinks do not send requests.";
+    return "Repeat your personalized hand gesture to confirm.";
+  return "A caregiver can calibrate a comfortable head, smile or deliberate blink response in Details. Touch confirmation is also available.";
 }
 function guideCheckIn(reason = "routine") {
   guide.due(performance.now());
@@ -681,7 +690,7 @@ function guideCheckIn(reason = "routine") {
   if (settings.scan) {
     if (reason === "start") {
       guide.lastPrompt = performance.now();
-      say("I'm Asha. Hands-free need scanning is on. I'll read each choice aloud. Use your calibrated gesture to choose one, then confirm it separately. Blinks never send requests.");
+      say("I'm Asha. Hands-free need scanning is on. I'll read each choice aloud. Use your calibrated response to choose one, then confirm it separately.");
     }
     return;
   }
@@ -704,6 +713,7 @@ function monitorUI(on) {
     : "NeuroFace Sense · FingerSpeak · VitalSense · Posture — paused. Start support to resume.";
   if (!on) {
     guide.clear();
+    cancelRequest();
     $("fingerStudio")?.contentWindow?.ashaSharedPause?.();
     screenLock?.release().catch(() => {});
     screenLock = null;
@@ -771,12 +781,27 @@ function propose(kind, source = "touch", text = needs[kind]) {
   $("confirmHint").textContent =
     "Send this request to your caregiver? " + confirmationHint();
   $("confirmDialog").showModal();
-  say(text + ". Send this to your caregiver? " + confirmationHint());
+  speakConfirmation(p);
   clearTimeout(wakeTimer);
   wakeTimer = setTimeout(() => cancelRequest(), 30000);
 }
+function speakConfirmation(p) {
+  const useBlink = p.source === "deliberate blink" || responsePlan(profile?.assessment, trained?.enabled).mode === "blink";
+  if (useBlink) blinkIntent.waitForQuestion();
+  $("confirmStatus").textContent = useBlink ? "Wait for Asha's question to finish." : "Waiting for your separate confirmation.";
+  const question = p.kind === "water" ? "Do you want water? Shall I ask your caregiver? " : p.text + ". Shall I ask your caregiver? ";
+  say(question + confirmationHint(), { onDone: () => {
+    if (gate.pending === p && useBlink) {
+      blinkIntent.questionFinished(performance.now());
+      $("confirmStatus").textContent = "Ready: keep eyes open briefly, then make your practiced yes blink.";
+    }
+  }, onError: () => {
+    if (gate.pending === p) $("confirmStatus").textContent = "Question audio was interrupted. Repeat the question before confirming by blink, or ask a caregiver for help.";
+  } });
+}
 function cancelRequest() {
   gate.cancel();
+  blinkIntent.reset();
   $("confirmDialog").close();
   clearTimeout(wakeTimer);
 }
@@ -784,10 +809,12 @@ document
   .querySelectorAll("[data-need]")
   .forEach((b) => (b.onclick = () => propose(b.dataset.need)));
 $("confirmNo").onclick = cancelRequest;
+$("confirmRepeat").onclick = () => { if (gate.pending) speakConfirmation(gate.pending); };
 $("confirmDialog").addEventListener("cancel", cancelRequest);
 async function confirmRequest() {
   const p = gate.confirm(performance.now());
   if (!p) return;
+  blinkIntent.reset();
   $("confirmDialog").close();
   clearTimeout(wakeTimer);
   await sendEvent(p.kind, p.source, p.text, true);
@@ -848,6 +875,7 @@ function renderRetry() {
 }
 $("testRequest").onclick = () => sendEvent("test", "touch", needs.test, true);
 function confirmationEvent(e) {
+  if (gate.pending?.source === "deliberate blink") return e.type === CONFIRM_BLINK;
   return confirmationMatches(e.type, profile?.assessment, trained?.enabled);
 }
 perception.addEventListener("gesture", ({ detail: e }) => {
@@ -856,6 +884,7 @@ perception.addEventListener("gesture", ({ detail: e }) => {
     if (confirmationEvent(e)) confirmRequest();
     return;
   }
+  // Plain BLINK_COMPLETED observations cannot enter this request path.
   const guidedKind = guide.accept(e.type, performance.now());
   if (guidedKind) {
     propose(guidedKind, "guided face");
@@ -950,6 +979,16 @@ perception.addEventListener("cue", async ({ detail: cue }) => {
   guideCheckIn(cue === "possible_wake" ? "wake" : "change");
 });
 perception.addEventListener("frame", ({ detail: s }) => {
+  const blinkEnabled = profile?.assessment?.eyes && profile.assessment.eyes !== "none" &&
+    trained?.enabled?.includes(RAPID_BLINK) && trained.enabled.includes(CONFIRM_BLINK);
+  if (!calibration && blinkEnabled && !document.hidden && ["patient", "details"].includes(view)) {
+    const signal = blinkIntent.update(s.analysis?.eye, s.t, s.analysis?.valid);
+    if (signal === RAPID_BLINK && !gate.pending) {
+      const selected = guide.accept(RAPID_BLINK, performance.now()) || (settings.scan && scanKind) || "water";
+      propose(selected, "deliberate blink");
+      if (!gate.pending) blinkIntent.reset();
+    } else if (signal === CONFIRM_BLINK && gate.pending && confirmationEvent({ type: signal })) confirmRequest();
+  } else blinkIntent.reset();
   if (calibration) {
     const old = calibration.index,
       r = calibration.update(s.raw);
@@ -963,6 +1002,7 @@ perception.addEventListener("frame", ({ detail: s }) => {
       };
       save("calibration_" + patient.patientId, trained);
       perception.setCalibration(trained.baseline, trained.enabled);
+      blinkIntent = new BlinkIntent(trained.baseline?.blinkIntent);
       calibration = null;
       $("calibrationDialog").close();
       $("gestureHint").textContent = confirmationHint();
@@ -1019,6 +1059,7 @@ $("skipCalibration").onclick = () => {
     };
     save("calibration_" + patient.patientId, trained);
     perception.setCalibration(trained.baseline, trained.enabled);
+    blinkIntent = new BlinkIntent(trained.baseline?.blinkIntent);
     calibration = null;
     $("calibrationDialog").close();
     toast("Only captured movements were enabled.");
@@ -1361,7 +1402,7 @@ for (const [id, k] of [
   $(id).onchange = () => {
     if (k === "scan" && $(id).checked && responsePlan(profile?.assessment, trained?.enabled).mode === "none") {
       $(id).checked = false;
-      toast("Calibrate a head or smile response before enabling hands-free scanning. Blinks cannot select a need.");
+      toast("Calibrate a head, smile or deliberate blink response before enabling hands-free scanning.");
       return;
     }
     settings[k] = $(id).checked;
@@ -1369,7 +1410,7 @@ for (const [id, k] of [
     if (k === "proactive") {
       guide.clear();
       updateQuietAsha();
-      if (!settings.proactive && "speechSynthesis" in window) speechSynthesis.cancel();
+      if (!settings.proactive && "speechSynthesis" in window) { speechVersion++; speechSynthesis.cancel(); }
     }
   };
 $("voiceSelect").onchange = () => {

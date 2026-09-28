@@ -166,7 +166,9 @@ try {
             .count(),
           1,
         );
-      assert.notEqual(await page.locator("#nf-value-AU4").textContent(), "—");
+      const brow = await page.locator("#nf-value-AU4").textContent();
+      if (brow === "—") assert.match(await page.locator("#nf-auStatus").textContent(), /Reference needed/);
+      else assert.match(brow, /^\d+%$/);
       await page.screenshot({
         path: "artifacts/neuroface-light-mobile.png",
         fullPage: true,

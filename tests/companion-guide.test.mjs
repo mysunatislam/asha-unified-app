@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { CompanionGuide, responsePlan, confirmationMatches } from "../app/companion-guide.js";
 import { RequestGate } from "../app/signals.js";
+import { RAPID_BLINK, CONFIRM_BLINK } from "../app/blink-intent.js";
 
 const head = { head: "reliable", lips: "reliable", eyes: "reliable" };
 const allHead = ["NOD_COMPLETED", "LEFT_TURN_COMPLETED", "RIGHT_TURN_COMPLETED", "BLINK_COMPLETED"];
@@ -50,4 +51,16 @@ test("three observed blinks cannot create or confirm a caregiver event", () => {
     assert.equal(confirmationMatches("BLINK_COMPLETED", head, allHead), false);
   }
   assert.equal(gate.pending, null);
+});
+
+test("eyes-only patient can answer Asha without head, lip or hand movement", () => {
+  const assessment = { head: "none", lips: "none", eyes: "limited" }, enabled = [RAPID_BLINK, CONFIRM_BLINK];
+  assert.equal(responsePlan(assessment, enabled).mode, "blink");
+  const guide = new CompanionGuide();
+  assert.match(guide.ask({ assessment, enabled, reason: "wake" }, 0), /Do you need water.*blink three times quickly/);
+  assert.equal(guide.accept("BLINK_COMPLETED", 500), null);
+  assert.equal(guide.accept(RAPID_BLINK, 2000), "water");
+  assert.equal(confirmationMatches(RAPID_BLINK, assessment, enabled), false);
+  assert.equal(confirmationMatches(CONFIRM_BLINK, assessment, enabled), true);
+  assert.equal(responsePlan({ ...assessment, eyes: "none" }, enabled).mode, "none");
 });

@@ -32,7 +32,7 @@ export function faceStudio() {
       <section class="card"><h3>👄 Lip Control <small>Module 5</small></h3>${row(["Gesture", "lipGesture"], ["MAR", "mar"], ["Pucker", "pucker"])}${chart("lipChart", "LIP OPENING")}${cell("Lip deviation", "deviation")}${cell("Sustained one-sided hold", "lipHold")}<progress id="nf-lipProgress" max="60" value="0" aria-label="Sustained one-sided lip hold, seconds"></progress><p id="nf-lipFlag" class="small muted">60 seconds of persistent same-side displacement is required.</p>${row(["Brow / corner pattern", "affectBrow"], ["Squeeze / tension pattern", "affectTension"])}<p class="small muted">Expression patterns are not proof of sadness or pain. A lip flag is not a seizure diagnosis.</p></section>
       <section class="card"><h3>〰 Facial Motion <small>Module 6</small></h3>${row(["Displacement", "displacement"], ["Acceleration", "acceleration"], ["Rhythm", "rhythm"])}${chart("motionChart", "LANDMARK DISPLACEMENT")}${cell("Movement state", "motionState")}<p class="small muted">Large or repeated motion can also be intentional. This does not distinguish involuntary movement from voluntary movement.</p></section>
       <section class="card"><h3>↔ Head Movement <small>Module 7</small></h3>${row(["Yaw", "yaw"], ["Pitch", "pitch"], ["Roll", "roll"])}${cell("Observed pose", "headPose")}${cell("Nod detected", "nod")}${chart("yawChart", "LEFT / RIGHT HEAD TURN")}${chart("pitchChart", "UP / DOWN HEAD MOVEMENT")}<p id="nf-headState" class="small muted">Complete a turn and return to center to count it.</p></section>
-      <section class="card"><h3>🗣 FaceSpeak Communication</h3><div id="nf-rules"></div><p id="faceCalibrationStatus" class="small muted"></p><p class="small muted">Asha asks first. A calibrated head or smile response proposes a request, then a separate response confirms it. Blinks are observations only and never contact a caregiver.</p><button id="nf-calibrateRules" class="secondary">Guided gesture calibration →</button></section>
+      <section class="card"><h3>🗣 FaceSpeak Communication</h3><div id="nf-rules"></div><p id="faceCalibrationStatus" class="small muted"></p><p class="small muted">Calibrated head, smile and deliberate blink responses are available. Three quick practiced blinks ask Asha for help. Wait for her question, then make one separate deliberate blink to confirm. Normal blink counts alone never send a request.</p><button id="nf-calibrateRules" class="secondary">Guided gesture calibration →</button></section>
       <section class="card face-log"><div class="section-heading"><h3>📋 Activity Log</h3><div class="actions"><button id="nf-clearLog" class="text-button">Clear</button><button id="nf-exportLog" class="text-button">Export JSON</button></div></div><div id="nf-log" class="face-event-log"><p class="muted">No observations yet.</p></div></section>
     </div>
   </div>`;
@@ -79,22 +79,9 @@ export function paintFaceStudio(s, trained, progress) {
       : "Unavailable",
   );
   for (const [key] of units) {
-    const previewKeys = {
-      AU1: ["browInnerUp"],
-      AU4: ["browDownLeft", "browDownRight"],
-      AU6: ["cheekSquintLeft", "cheekSquintRight"],
-      AU12: ["mouthSmileLeft", "mouthSmileRight"],
-      AU20: ["mouthStretchLeft", "mouthStretchRight"],
-      AU25: ["jawOpen"],
-    }[key];
-    const preview =
-      a.valid && previewKeys.every((k) => Number.isFinite(s.blendshapes?.[k]))
-        ? Math.round(
-            (100 * previewKeys.reduce((sum, k) => sum + s.blendshapes[k], 0)) /
-              previewKeys.length,
-          )
-        : null;
-    const value = a.valid && a.au?.ready ? a.au.values[key] : preview;
+    // Absolute model scores have no personal neutral reference and can remain
+    // high at rest. Never present them as calibrated muscle activity.
+    const value = a.valid && a.au?.ready ? a.au.values[key] : null;
     text(
       "value-" + key,
       value === null || value === undefined ? "—" : value + "%",
@@ -107,7 +94,7 @@ export function paintFaceStudio(s, trained, progress) {
       ? "Landmark geometry unavailable — paused."
       : a.au?.ready
         ? "Fixed neutral-relative geometry active. Raise or lower your brows, smile, or open your lips to see live changes."
-        : `Live model preview shown. Relax your face to enable neutral-relative geometry · ${a.au?.progress || 0}/45 valid frames.`,
+        : `Reference needed — relax your brows and keep eyes open briefly · ${a.au?.progress || 0}/45 valid frames. Use Relearn relaxed reference if needed.`,
   );
   text("smileIntensity", pct(a.smile?.intensity));
   text(
@@ -183,7 +170,8 @@ export function paintFaceStudio(s, trained, progress) {
     ["Prompted nod", "Water or yes", "NOD_COMPLETED"],
     ["Prompted left turn + return", "Food", "LEFT_TURN_COMPLETED"],
     ["Prompted right turn + return", "Toilet", "RIGHT_TURN_COMPLETED"],
-    ["Blinks", "Observed only · no request", null],
+    ["3 quick deliberate blinks", "Ask Asha · then confirm", "RAPID_BLINK_REQUEST"],
+    ["Separate deliberate blink", "Confirm after Asha's question", "BLINK_CONFIRM"],
   ]
     .map(
       ([label, phrase, event]) =>

@@ -1,3 +1,4 @@
+import { RAPID_BLINK, CONFIRM_BLINK } from "./blink-intent.js";
 const NEED_LABELS = {
   water: "water",
   food: "food",
@@ -27,6 +28,8 @@ export function responsePlan(assessment = {}, enabled = []) {
   if (right) return { mode: "yes", event: "RIGHT_TURN_COMPLETED", verb: "turn your head right and return to center" };
   if (lips && active.has("SMILE_COMPLETED"))
     return { mode: "yes", event: "SMILE_COMPLETED", verb: "smile and relax" };
+  if (assessment.eyes && assessment.eyes !== "none" && active.has(RAPID_BLINK) && active.has(CONFIRM_BLINK))
+    return { mode: "blink", event: RAPID_BLINK, verb: "blink three times quickly, fully reopening each time" };
   return { mode: "none" };
 }
 
@@ -34,7 +37,7 @@ export function confirmationMatches(type, assessment, enabled) {
   const plan = responsePlan(assessment, enabled);
   return plan.mode === "menu"
     ? type === "NOD_COMPLETED"
-    : plan.mode === "yes" && type === plan.event;
+    : plan.mode === "blink" ? type === CONFIRM_BLINK : plan.mode === "yes" && type === plan.event;
 }
 
 export class CompanionGuide {
@@ -77,7 +80,7 @@ export class CompanionGuide {
     }
     if (handMapped)
       return prefix + "Your personalized hand gestures can tell me what you need. Show one when you're ready; I'll repeat the request before sending it.";
-    return prefix + "I can describe this page, but I don't have a reliable hands-free answer from your assessment yet. A caregiver can set up a comfortable response in Details. Blinks never send requests.";
+    return prefix + "I can describe this page, but I don't have a reliable hands-free answer from your assessment yet. A caregiver can set up a comfortable head, smile or deliberate blink response in Details.";
   }
   accept(event, t) {
     if (!this.pending) return null;

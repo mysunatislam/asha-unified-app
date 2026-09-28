@@ -28,8 +28,8 @@ function mesh() {
     [263, 0.63, 0.4],
     [133, 0.43, 0.4],
     [362, 0.57, 0.4],
-    [105, 0.43, 0.33],
-    [334, 0.57, 0.33],
+    [107, 0.43, 0.33],
+    [336, 0.57, 0.33],
     [116, 0.4, 0.48],
     [345, 0.6, 0.48],
     [61, 0.42, 0.62],
@@ -68,8 +68,8 @@ const result = (extra = {}) => ({
 const baseline = NF_engine.baseline();
 function calibrated() {
   const a = new FaceAnalysis();
-  for (let i = 0; i < 45; i++)
-    a.update(mesh(), raw(), result(), baseline, i * 40);
+  for (let i = 0; i < 60; i++)
+    a.update(mesh(), raw(), result(), baseline, i * 25);
   assert.ok(a.neutral);
   return a;
 }
@@ -77,19 +77,53 @@ test("original AU geometry responds to eyebrow rise and lowering; rest is zero",
   const a = calibrated();
   let s;
   const raised = mesh();
-  raised[105].y -= 0.02;
-  raised[334].y -= 0.02;
+  raised[107].y -= 0.02;
+  raised[336].y -= 0.02;
   for (let i = 0; i < 12; i++)
-    s = a.update(raised, raw(), result(), baseline, 2000 + i * 40);
+    s = a.update(raised, raw(), result(), baseline, 1600 + i * 40);
   assert.ok(s.au.values.AU1 > 90);
   assert.equal(s.au.values.AU4, 0);
   const lowered = mesh();
-  lowered[105].y += 0.02;
-  lowered[334].y += 0.02;
+  lowered[107].y += 0.02;
+  lowered[336].y += 0.02;
   for (let i = 0; i < 12; i++)
-    s = a.update(lowered, raw(), result(), baseline, 2500 + i * 40);
+    s = a.update(lowered, raw(), result(), baseline, 2100 + i * 40);
   assert.ok(s.au.values.AU4 > 90);
   assert.ok(s.au.values.AU1 < 5);
+});
+
+test("neutral brow measurement is invariant to rigid head rotation, scale and translation", () => {
+  const tracker = new NF_activity.Tracker(3), original = mesh();
+  for (let i = 0; i < 3; i++) tracker.update(original);
+  const yaw = 0.4, roll = 0.35, pitch = -0.25;
+  const moved = original.map((p) => {
+    const x = p.x * Math.cos(yaw) + p.z * Math.sin(yaw);
+    const z = -p.x * Math.sin(yaw) + p.z * Math.cos(yaw);
+    const y = p.y * Math.cos(pitch) - z * Math.sin(pitch);
+    const zz = p.y * Math.sin(pitch) + z * Math.cos(pitch);
+    return { x: 0.1 + 0.8 * (x * Math.cos(roll) - y * Math.sin(roll)), y: 0.1 + 0.8 * (x * Math.sin(roll) + y * Math.cos(roll)), z: zz * 0.8 };
+  });
+  for (let i = 0; i < 20; i++) {
+    const r = tracker.update(moved);
+    assert.equal(r.values.AU1, 0);
+    assert.equal(r.values.AU4, 0);
+  }
+});
+
+test("blink-related landmark shifts do not register as raised brows; genuine raise returns to neutral", () => {
+  const a = calibrated(), raised = mesh();
+  raised[107].y -= 0.025; raised[336].y -= 0.025;
+  for (let t = 1600; t <= 1760; t += 40) {
+    const s = a.update(raised, raw({ earLeft: 0.1, earRight: 0.1, eyeBlinkLeft: 0.9, eyeBlinkRight: 0.9 }), result(), baseline, t);
+    assert.equal(s.au.values.AU1, 0);
+  }
+  let s;
+  for (let t = 1800; t <= 2400; t += 40) s = a.update(mesh(), raw(), result(), baseline, t);
+  assert.equal(s.au.values.AU1, 0);
+  for (let t = 2440; t <= 2840; t += 40) s = a.update(raised, raw(), result(), baseline, t);
+  assert.ok(s.au.values.AU1 > 90);
+  for (let t = 2880; t <= 3400; t += 40) s = a.update(mesh(), raw(), result(), baseline, t);
+  assert.equal(s.au.values.AU1, 0);
 });
 test("head movement and nod stay visible; observed blink counts are not duplicated from commands", () => {
   const a = calibrated();

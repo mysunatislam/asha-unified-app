@@ -37,6 +37,7 @@
       const names=['eyeBlinkLeft','eyeBlinkRight','mouthSmileLeft','mouthSmileRight','cheekSquintLeft','cheekSquintRight','mouthClose','jawOpen','mouthPucker'];
       const f={timestamp:t,facePresent:true,poseValid:!!pose,...(pose||{yaw:0,pitch:0,roll:0}),trackingConfidence:null,confidenceSource:'quality proxy; task API does not expose per-frame tracking probability',blendshapesValid:names.every(k=>Number.isFinite(bs[k]))};
       for(const k of names)f[k]=bs[k];
+      f.imageAspect=H/W;
       // Explicit anatomical left/right mapping (33/61 are the subject's right).
       f.earLeft=M.earPx(lm,window.NF_LM.eyeR,W,H);f.earRight=M.earPx(lm,window.NF_LM.eyeL,W,H);f.earMean=(f.earLeft+f.earRight)/2;
       const pixel=p=>({x:p.x*W,y:p.y*H}),a=pixel(lm[234]),b=pixel(lm[454]);

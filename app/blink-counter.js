@@ -133,8 +133,10 @@ export class BlinkCounter {
           this.total++;
           this.times.push(t);
           this.last = {
+            start: c.start,
             timestamp: t,
             duration,
+            amplitude: Math.min(1 - c.minLeft / c.left, 1 - c.minRight / c.right),
             source: "bilateral EAR dip",
             deliberate: false,
           };

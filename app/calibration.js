@@ -1,3 +1,5 @@
+import { BlinkCounter } from "./blink-counter.js";
+import { rapidTriple, blinkProfile, RAPID_BLINK, CONFIRM_BLINK } from "./blink-intent.js";
 export class GuidedCalibration {
   constructor(a = {}) {
     this.steps = [
@@ -8,8 +10,10 @@ export class GuidedCalibration {
         still: true,
       },
     ];
-    // Eye openness and blink counts remain observable without enrollment.
-    // Blinks are never a communication command or caregiver-call confirmation.
+    if (a.eyes && a.eyes !== "none") this.steps.push(
+      { id: "rapidBlink", label: "Keep your eyes open briefly. Blink three times quickly in a row, fully reopening each time. This will ask Asha for attention.", event: RAPID_BLINK },
+      { id: "confirmBlink", label: "Practice the separate yes response: close both eyes deliberately, a little longer than your quick blinks (about half to one second), then reopen. Relax between attempts. Repeat three times.", event: CONFIRM_BLINK },
+    );
     if (a.lips !== "none")
       this.steps.push({
         id: "smile",
@@ -51,12 +55,14 @@ export class GuidedCalibration {
     this.enabled = [];
     this.baseline = null;
     this.lastReplay = 0;
+    this.blinkCounter = new BlinkCounter();
   }
   get step() {
     return this.steps[this.index];
   }
   skip() {
     if (this.index === 0) return;
+    if (this.step.id === "rapidBlink") this.next();
     this.next();
   }
   next() {
@@ -66,6 +72,8 @@ export class GuidedCalibration {
     this.validMs = 0;
     this.last = null;
     this.lastReplay = 0;
+    this.blinkCounter = new BlinkCounter();
+    this.lastBlinkAt = null;
   }
   update(f) {
     if (!this.step) return { done: true };
@@ -84,6 +92,10 @@ export class GuidedCalibration {
     }
     if (!q.ok) {
       this.last = null;
+      if (["rapidBlink", "confirmBlink"].includes(this.step.id)) {
+        this.events = [];
+        this.blinkCounter = new BlinkCounter();
+      }
       return { message: q.reasons[0], progress: 0 };
     }
     if (this.last !== null && f.timestamp - this.last < 250)
@@ -92,6 +104,31 @@ export class GuidedCalibration {
     this.frames.push({ ...f });
     if (this.frames.length > 6000) {
       this.frames.shift();
+    }
+    if (["rapidBlink", "confirmBlink"].includes(this.step.id)) {
+      const eye = this.blinkCounter.update(f, f.timestamp), e = eye.last;
+      if (e && e.timestamp !== this.lastBlinkAt) {
+        this.lastBlinkAt = e.timestamp;
+        const rapid = this.stages.rapidBlink?.events;
+        const minConfirm = Math.max(240, (rapid ? rapid.reduce((sum, x) => sum + x.duration, 0) / 3 : 160) * 1.5);
+        if (this.step.id === "rapidBlink") {
+          if (e.duration > 500 || e.amplitude < 0.08) this.events = [];
+          else {
+            if (this.events.length && e.start - this.events.at(-1).timestamp > 650) this.events = [];
+            this.events.push(e);
+            this.events = this.events.slice(-3);
+          }
+        } else if (rapid && e.duration >= minConfirm && e.duration <= 1200 && e.amplitude >= 0.08) this.events.push(e);
+      }
+      const done = this.step.id === "rapidBlink" ? rapidTriple(this.events) : this.events.length >= 3;
+      if (!done) return { progress: Math.min(1, this.events.length / 3), message: `${this.events.length}/3 ${this.step.id === "rapidBlink" ? "quick consecutive blinks" : "separate deliberate confirmation blinks"}` };
+      this.stages[this.step.id] = { events: [...this.events] };
+      if (this.step.id === "confirmBlink") {
+        this.baseline.blinkIntent = blinkProfile(this.stages.rapidBlink.events, this.events);
+        this.enabled.push(RAPID_BLINK, CONFIRM_BLINK);
+      }
+      this.next();
+      return { advanced: true, done: !this.step, baseline: this.baseline, enabled: this.enabled };
     }
     if (
       this.step.event &&

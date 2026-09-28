@@ -54,6 +54,7 @@ try {
         raw,
         blinks: eye.total,
         latency: 40,
+        blendshapes: { browInnerUp: 0.99, browDownLeft: 0.9, browDownRight: 0.9 },
         analysis: { valid: true, eye, au: {}, lip: {}, head: {}, log: [] },
       },
       null,
@@ -66,6 +67,7 @@ try {
       debug: document.getElementById("nf-eyeDebug").textContent,
       duration: document.getElementById("nf-blinkDuration").textContent,
       requestDialogOpen: document.getElementById("confirmDialog").open,
+      uncalibratedBrow: document.getElementById("nf-value-AU1").textContent,
     };
   });
   assert.equal(result.total, 8);
@@ -74,6 +76,7 @@ try {
   assert.ok(result.debug.startsWith("8 observed blinks total"));
   assert.equal(result.duration, "0.16s");
   assert.equal(result.requestDialogOpen, false);
+  assert.equal(result.uncalibratedBrow, "—", "raw model scores must not masquerade as neutral-relative activity");
   assert.deepEqual(errors, []);
   console.log(JSON.stringify({ base, replayUI: true, ...result, errors }));
 } finally {
