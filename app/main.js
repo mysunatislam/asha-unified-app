@@ -1381,6 +1381,35 @@ function openChat() {
   $("chatInput").focus();
 }
 $("closeChat").onclick = () => ($("chatPanel").hidden = true);
+function immediateAppGuide(text) {
+  const q = text.toLowerCase().replace(/[?!.,]/g, "").trim();
+  if (
+    [
+      "what is this app",
+      "what does this app do",
+      "what does asha do",
+      "how does this app work",
+    ].includes(q)
+  )
+    return "I'm Asha. I guide this app and help you communicate with face, hand, or speech responses that work for you. A caregiver request is sent only after you confirm it.";
+  if (
+    ["what is this page", "what can i do here", "how do i use this page"].includes(q) ||
+    q === `guide me through ${names[module].toLowerCase()} based on my assessment`
+  ) {
+    if (view === "caregiver")
+      return "This is the caregiver dashboard. You can see patient requests, check the latest status, and acknowledge a request so the patient knows you saw it.";
+    if (view === "welcome")
+      return "Welcome to Asha. You can explore the live demo now or set up a private care circle with a caregiver.";
+    if (view === "setup")
+      return "This setup asks which movements and senses the patient can use. A caregiver can update the assessment later, and every module stays available.";
+    if (view === "settings")
+      return "These are Asha's settings. You can change the voice, theme, and check-ins here.";
+    if (view === "patient")
+      return "This is your patient page. Asha can guide you aloud, and Details opens the face, hand, speech, pulse trend, and posture views.";
+    return `You're viewing ${names[module]}. ${moduleGuidance[module] || "You can open Details to explore FaceSpeak, FingerSpeak, VitalSense, SenseAssist, and posture."}`;
+  }
+  return null;
+}
 async function askAsha(text, options = {}) {
   if (!credential())
     throw Error("The local demo cannot reach Asha cloud right now. Live camera modules still work; retry when connected.");
@@ -1430,6 +1459,17 @@ $("chatForm").onsubmit = async (e) => {
   if (!text) return;
   addChat(text, true);
   $("chatInput").value = "";
+  const immediate = immediateAppGuide(text);
+  if (immediate) {
+    addChat(immediate);
+    conversation.push(
+      { role: "user", text },
+      { role: "assistant", text: immediate },
+    );
+    while (conversation.length > 6) conversation.shift();
+    say(immediate);
+    return;
+  }
   const p = addChat("I heard you. Finding a short answer…");
   e.submitter.disabled = true;
   const acknowledgement = setTimeout(() => {
