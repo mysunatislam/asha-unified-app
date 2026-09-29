@@ -3,6 +3,7 @@ node_modules
 artifacts
 tests
 scripts
+supabase
 canvaskit
 main.dart.js
 flutter*

@@ -1,6 +1,11 @@
 import { blobStore } from "./store.js";
+import { supabaseStore } from "./supabase-store.js";
 import { hash, equal } from "./logic.js";
-export const store = blobStore;
+export const store =
+  process.env.SUPABASE_URL &&
+  (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)
+    ? supabaseStore
+    : blobStore;
 export const base = (id) => `asha-live/v1/${id}`;
 export const path = (id, file) => `${base(id)}/${file}.json`;
 export function begin(req, res) {

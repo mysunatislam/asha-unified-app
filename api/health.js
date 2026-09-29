@@ -6,7 +6,17 @@ export default function handler(req, res) {
     cloudConfigured: !!(
       process.env.MAIRA_API_KEY && process.env.MAIRA_PROJECT_KEY
     ),
-    caregiverConfigured: !!process.env.BLOB_READ_WRITE_TOKEN,
+    caregiverConfigured: !!(
+      (process.env.SUPABASE_URL &&
+        (process.env.SUPABASE_SECRET_KEY ||
+          process.env.SUPABASE_SERVICE_ROLE_KEY)) ||
+      process.env.BLOB_READ_WRITE_TOKEN
+    ),
+    storageProvider:
+      process.env.SUPABASE_URL &&
+      (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)
+        ? "supabase"
+        : "blob",
     pushConfigured: !!process.env.VAPID_PRIVATE_KEY,
   });
 }

@@ -64,7 +64,15 @@ Local preview: http://127.0.0.1:4180. The development server proxies API request
 
 `api/` contains Vercel serverless functions; `server/` contains persistence and validation. `app/` is the unified frontend and camera pipeline. The original static export remains in Git history and supporting assets are reused. FingerSpeak is embedded from `neuroface/fingerspeak.html`, receiving hand results and the parent's existing media stream through a same-origin bridge; it cannot request another camera or microphone. Other legacy frontend routes are redirected/excluded on Vercel.
 
-Server secrets: `MAIRA_API_KEY`, `MAIRA_PROJECT_KEY`, `BLOB_READ_WRITE_TOKEN`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `CRON_SECRET`. Never set them in frontend code or a public repository. `scripts/provision.mjs` is an operator helper for this workstation; it transfers credentials in memory.
+Server secrets: `MAIRA_API_KEY`, `MAIRA_PROJECT_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `CRON_SECRET`. Never set the Supabase secret or other private keys in frontend code or a public repository. `scripts/provision.mjs` is an operator helper for this workstation; it transfers credentials in memory.
+
+### Supabase cutover
+
+1. In the project's Supabase SQL Editor, run [`supabase/schema.sql`](supabase/schema.sql) once. The table has row-level security enabled, no browser roles can access it, and the server secret alone can read or write it.
+2. In the Vercel project's Settings → Environment Variables, set `SUPABASE_URL` to the project URL (`https://<project-ref>.supabase.co`) and `SUPABASE_SECRET_KEY` to a new `sb_secret_...` key from Supabase Settings → API Keys. Apply both to Production and redeploy. The secret must never be added to GitHub, a chat message, or a frontend environment variable.
+3. Check `/api/health` for `storageProvider: "supabase"`, then create one demo care circle and send a test request from the patient page to a separate caregiver page. A healthy health response only confirms configuration; the request and receipt verify real storage.
+
+When both variables are present, all existing API routes use the private Supabase table; otherwise they retain the original Blob store. Existing links held only in the old Blob store will need a new care circle if that store is unavailable.
 
 ## Verification
 
