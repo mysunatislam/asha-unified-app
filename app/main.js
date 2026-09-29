@@ -289,7 +289,7 @@ async function call(
           ...(cred ? { patientId: cred.patientId } : {}),
         })
       : undefined,
-    signal: AbortSignal.timeout(28000),
+    signal: AbortSignal.timeout(endpoint === "asha" ? 55000 : 28000),
   });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw Error(d.error || `Connection failed (${r.status})`);
@@ -303,7 +303,17 @@ function privateLink(role, id, token) {
 }
 function parseLink(value, expected) {
   const u = new URL(value);
-  if (u.origin !== site.origin || !u.pathname.startsWith(site.pathname))
+  const approvedSites = [
+    site,
+    new URL("https://neurobridge-asha-live.vercel.app/"),
+    new URL("https://mysunatislam.github.io/neurobridge-asha-unified-app/"),
+  ];
+  if (
+    !approvedSites.some(
+      (root) =>
+        u.origin === root.origin && u.pathname.startsWith(root.pathname),
+    )
+  )
     throw Error("Use a private link from this Asha app.");
   const q = new URLSearchParams(u.hash.slice(1)),
     id = q.get("patientId"),
@@ -447,12 +457,14 @@ async function startDemo(requestedModule = "facespeak") {
       carePatients.push({ patientId: d.patientId, token: d.caregiverToken,
         patientToken: d.patientToken, label: d.label });
       save("care", carePatients);
-    } catch {
+    } catch (e) {
       // Local sensing remains available if the session service is unreachable.
       patient = null;
       profile = demoProfile;
       demoSession = true;
-      toast("Local demo opened. Cloud chat and caregiver delivery need a connection.");
+      toast(
+        `Local demo opened. ${e.message || "Cloud chat and caregiver delivery need a connection."}`,
+      );
     } finally {
       $("exploreDemo").disabled = false;
       $("exploreDemo").textContent = "Explore live demo ↗";
@@ -729,6 +741,8 @@ function renderPatient() {
   for (const b of document.querySelectorAll("[data-demo-care-link]"))
     b.hidden = !demoSession || !patient || !carePatients.some((x) => x.patientId === patient.patientId && x.token);
   updateQuietAsha();
+  if (patient && read("unsent_" + patient.patientId, null)) renderRetry();
+  else $("retryRequest")?.remove();
 }
 document.querySelectorAll("[data-demo-care-link]").forEach((b) => b.onclick = () => {
   const c = carePatients.find((x) => x.patientId === patient?.patientId);
@@ -2008,8 +2022,8 @@ async function initialize() {
     const u = new URL(location.href);
     if (u.hash.includes("token=")) {
       const c = parseLink(u.href);
-      historyReplace();
       await acceptLink(c);
+      historyReplace();
     } else if (
       u.searchParams.get("role") === "caregiver" ||
       location.pathname.endsWith("/care")
@@ -2042,7 +2056,11 @@ async function initialize() {
     .then((d) => {
       $("cloudBadge").textContent = demoSession && !patient
         ? "Local demo"
-        : d.cloudConfigured ? "Asha ready" : "Local support";
+        : d.cloudConfigured
+          ? "Asha cloud configured"
+          : d.caregiverConfigured
+            ? "Care circle online · AI unavailable"
+            : "Local support";
     })
     .catch(() => ($("cloudBadge").textContent = "Local support"));
 }
