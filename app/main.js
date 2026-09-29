@@ -292,7 +292,11 @@ async function call(
     signal: AbortSignal.timeout(endpoint === "asha" ? 55000 : 28000),
   });
   const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw Error(d.error || `Connection failed (${r.status})`);
+  if (!r.ok) {
+    const error = Error(d.error || `Connection failed (${r.status})`);
+    error.status = r.status;
+    throw error;
+  }
   return d;
 }
 function privateLink(role, id, token) {
@@ -431,6 +435,97 @@ async function openPatient() {
   }
 }
 let startingDemo = null;
+async function createDemoSession(
+  assessment = demoAssessment,
+  supportContext = demoProfile.supportContext,
+  voice = demoProfile.voice,
+) {
+  const oldDemoId = demoSession ? read("demoPatientId", "") : "";
+  const d = await call("session", {
+    cred: null,
+    body: {
+      action: "create",
+      label: "Demo patient",
+      assessment,
+      supportContext,
+      voice,
+    },
+  });
+  // A renewed demo is still the same person on this device. Keep local training.
+  if (oldDemoId && oldDemoId !== d.patientId) {
+    for (const key of ["calibration_", "handmap_", "speech_", "preferences_"]) {
+      const value = read(key + oldDemoId, null);
+      if (value !== null) save(key + d.patientId, value);
+    }
+  }
+  patient = { patientId: d.patientId, token: d.patientToken };
+  save("patient", patient);
+  save("demoPatientId", d.patientId);
+  profile = d;
+  demoSession = true;
+  careId = d.patientId;
+  carePatients = carePatients.filter(
+    (x) => x.patientId !== oldDemoId && x.patientId !== d.patientId,
+  );
+  carePatients.push({
+    patientId: d.patientId,
+    token: d.caregiverToken,
+    patientToken: d.patientToken,
+    label: d.label,
+  });
+  save("care", carePatients);
+  return d;
+}
+
+let demoRecovery = null;
+let demoRecoveryAfter = 0;
+async function renewDemoSession(staleCredential) {
+  if (!demoSession || !staleCredential || view === "caregiver") return false;
+  if (demoRecovery) return demoRecovery;
+  if (
+    patient?.patientId !== staleCredential.patientId ||
+    patient?.token !== staleCredential.token
+  )
+    return !!patient;
+  if (Date.now() < demoRecoveryAfter) return false;
+  demoRecovery = (async () => {
+    try {
+      // Do not consume a new demo session for a transient Asha-only failure.
+      await call("session", { cred: staleCredential });
+      return false;
+    } catch (error) {
+      if (error.status !== 401) throw error;
+    }
+    const cameraWasRunning = perception.running;
+    await createDemoSession(
+      profile?.assessment || demoAssessment,
+      profile?.supportContext || demoProfile.supportContext,
+      profile?.voice || demoProfile.voice,
+    );
+    loadPersonal();
+    renderPatient();
+    if (view === "details") renderModule();
+    $("connectionBadge").textContent = "Demo care circle ready";
+    $("cloudBadge").textContent = "Asha cloud configured";
+    $("demoNotice").textContent +=
+      " Your demo was reconnected. The previous caregiver link expired; copy the new link." +
+      (cameraWasRunning ? " Restart the camera to resume sensing." : "");
+    toast(
+      "Demo reconnected. Copy the new caregiver link" +
+        (cameraWasRunning ? " and restart the camera." : "."),
+    );
+    return true;
+  })();
+  try {
+    return await demoRecovery;
+  } catch (error) {
+    demoRecoveryAfter = Date.now() + 30000;
+    throw error;
+  } finally {
+    demoRecovery = null;
+  }
+}
+
 async function startDemo(requestedModule = "facespeak") {
   if (startingDemo) return startingDemo;
   if (patient && profile) {
@@ -442,21 +537,7 @@ async function startDemo(requestedModule = "facespeak") {
     $("exploreDemo").disabled = true;
     $("exploreDemo").textContent = "Opening demo…";
     try {
-      const d = await call("session", {
-        cred: null,
-        body: { action: "create", label: "Demo patient", assessment: demoAssessment,
-          supportContext: demoProfile.supportContext, voice: demoProfile.voice },
-      });
-      patient = { patientId: d.patientId, token: d.patientToken };
-      save("patient", patient);
-      save("demoPatientId", d.patientId);
-      profile = d;
-      demoSession = true;
-      careId = d.patientId;
-      carePatients = carePatients.filter((x) => x.patientId !== d.patientId);
-      carePatients.push({ patientId: d.patientId, token: d.caregiverToken,
-        patientToken: d.patientToken, label: d.label });
-      save("care", carePatients);
+      await createDemoSession();
     } catch (e) {
       // Local sensing remains available if the session service is unreachable.
       patient = null;
@@ -1199,8 +1280,10 @@ let lastAck = null;
 async function pollPatient() {
   if (!patient || pollBusy) return;
   pollBusy = true;
+  const pollCredential = patient;
   try {
-    const d = await call("session", { cred: patient });
+    const d = await call("session", { cred: pollCredential });
+    if (patient?.patientId !== pollCredential.patientId) return;
     const changed =
       profile &&
       JSON.stringify(profile.assessment) !==
@@ -1236,7 +1319,16 @@ async function pollPatient() {
       }
     }
   } catch (e) {
-    $("connectionBadge").textContent = "Connection interrupted";
+    if (e.status === 401 && demoSession) {
+      try {
+        if (await renewDemoSession(pollCredential)) return;
+      } catch (recoveryError) {
+        $("connectionBadge").textContent = recoveryError.message;
+        return;
+      }
+    }
+    $("connectionBadge").textContent =
+      e.status === 401 ? "Session expired · reopen your private link" : "Connection interrupted";
   } finally {
     pollBusy = false;
   }
@@ -1430,20 +1522,27 @@ async function askAsha(text, options = {}) {
           .map((x) => `${x.heard} → ${x.confirmed}`)
           .join("; ")
       : "";
-  const reply = await call("asha", {
-    body: {
-      text,
-      module: view === "caregiver" ? "caregiver" : module,
-      context:
-        (options.context ||
-          `Camera ${perception.running ? "on" : "off"}; posture ${perception.snapshot.posture?.label || "unavailable"}`) +
-        (learned ? " Previously confirmed: " + learned : ""),
-      mode: options.mode || "chat",
-      history: conversation.slice(-6),
-      consent: true,
-      language: options.language || "en",
-    },
-  });
+  const request = {
+    text,
+    module: view === "caregiver" ? "caregiver" : module,
+    context:
+      (options.context ||
+        `Camera ${perception.running ? "on" : "off"}; posture ${perception.snapshot.posture?.label || "unavailable"}`) +
+      (learned ? " Previously confirmed: " + learned : ""),
+    mode: options.mode || "chat",
+    history: conversation.slice(-6),
+    consent: true,
+    language: options.language || "en",
+  };
+  const chatCredential = credential();
+  let reply;
+  try {
+    reply = await call("asha", { cred: chatCredential, body: request });
+  } catch (error) {
+    if (error.status !== 401 || !demoSession || view === "caregiver") throw error;
+    if (!(await renewDemoSession(chatCredential))) throw error;
+    reply = await call("asha", { cred: patient, body: request });
+  }
   if (reply.reply) {
     conversation.push(
       { role: "user", text },
@@ -1483,7 +1582,12 @@ $("chatForm").onsubmit = async (e) => {
     $("cloudBadge").textContent = "Asha connected";
   } catch (err) {
     p.textContent = err.message;
-    $("cloudBadge").textContent = "Asha cloud unavailable";
+    $("cloudBadge").textContent =
+      err.status === 401
+        ? "Session expired"
+        : err.status === 429
+          ? "Please wait"
+          : "Asha cloud unavailable";
   } finally {
     clearTimeout(acknowledgement);
     e.submitter.disabled = false;
