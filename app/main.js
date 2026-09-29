@@ -1430,8 +1430,12 @@ $("chatForm").onsubmit = async (e) => {
   if (!text) return;
   addChat(text, true);
   $("chatInput").value = "";
-  const p = addChat("Thinking…");
+  const p = addChat("I heard you. Finding a short answer…");
   e.submitter.disabled = true;
+  const acknowledgement = setTimeout(() => {
+    if (view !== "caregiver" && !gate.pending && !calibration)
+      say("I heard you. I'll answer in a moment.");
+  }, 1500);
   try {
     const d = await askAsha(text);
     p.textContent = d.reply;
@@ -1441,6 +1445,7 @@ $("chatForm").onsubmit = async (e) => {
     p.textContent = err.message;
     $("cloudBadge").textContent = "Asha cloud unavailable";
   } finally {
+    clearTimeout(acknowledgement);
     e.submitter.disabled = false;
   }
 };

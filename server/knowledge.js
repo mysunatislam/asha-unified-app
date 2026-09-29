@@ -17,3 +17,24 @@ export const guides = {
   caregiver:
     "Use the private caregiver link from setup on the second phone. View Requests & updates and acknowledge to let the patient know. Sent means server-stored; received means the dashboard fetched it; acknowledged requires a caregiver action. Push is optional, and on iPhone requires installation to the Home Screen. Keep the dashboard open for foreground live updates. Patient camera sensing stops when the browser is backgrounded or locked.",
 };
+
+// The provider receives a compact, module-specific fact set on each turn.
+// The full guides above remain available for future retrieval or help views.
+export const briefGuides = {
+  companion:
+    "Asha guides pages and offers check-ins. Details opens every module. A confirmed request reaches the assigned caregiver; this app does not place phone calls.",
+  assessment:
+    "Available hand movement suggests FingerSpeak, face movement suggests FaceSpeak, and speech suggests SenseAssist. All modules stay open. Use voice for someone who cannot see and text for someone who cannot hear.",
+  facespeak:
+    "A caregiver calibrates movements in Details. Ordinary blinks never request help. Three practiced quick blinks may propose a need; a separate practiced slower blink after Asha's question confirms it. Head and smile responses can also be calibrated.",
+  fingerspeak:
+    "Track either or both hands. Record, test, and confirm personal gestures before speaking or sending a request. The capability assessment never locks this module.",
+  senseassist:
+    "Practice short phrases or clarify an editable speech transcript. Asha suggests possible words; the speaker confirms before they are spoken or sent.",
+  vitalsense:
+    "Camera pulse is an experimental trend and needs a clear, still 20-second sample. It does not measure blood pressure, oxygen, or temperature or trigger emergencies.",
+  posture:
+    "Pose tracking observes position and movement. A sustained change may prompt a comfort question. A wake-like pattern is not a sleep-stage reading or diagnosis.",
+  caregiver:
+    "The caregiver opens a private link on another device, sees requests, and acknowledges them. Sent, received, and acknowledged are distinct states. Push is optional; keep the dashboard open for live foreground updates.",
+};
