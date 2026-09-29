@@ -76,6 +76,7 @@ export default async function handler(req, res) {
     if (!text)
       return res.status(400).json({ error: "Say or type something first." });
     const interpret = b.mode === "interpret";
+    const selectedProfile = interpret ? Promise.resolve(null) : fastProfileId();
     const daily = path(
       b.patientId,
       "usage/" + new Date().toISOString().slice(0, 10),
@@ -85,7 +86,6 @@ export default async function handler(req, res) {
       return res
         .status(429)
         .json({ error: "Please wait a moment before asking again." });
-    const selectedProfile = interpret ? Promise.resolve(null) : fastProfileId();
     await store.write(
       daily,
       { count: usage.count + 1, last: Date.now() },
@@ -131,6 +131,10 @@ export default async function handler(req, res) {
         }),
         signal: AbortSignal.timeout(48000),
       });
+      res.setHeader(
+        "Server-Timing",
+        `setup;dur=${providerStarted - started}, maira;dur=${Date.now() - providerStarted}, profile;desc="${gptProfileId ? "flash" : "default"}"`,
+      );
       console.info("asha provider timing", {
         status: r.status,
         beforeProviderMs: providerStarted - started,
