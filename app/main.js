@@ -4,6 +4,7 @@ import { faceStudio, paintFaceStudio } from "./face-studio.js";
 import { RequestGate, recommendations, clamp } from "./signals.js";
 import { CompanionGuide, responsePlan, confirmationMatches } from "./companion-guide.js";
 import { BlinkIntent, RAPID_BLINK, CONFIRM_BLINK } from "./blink-intent.js";
+import { SpeechCapture } from "./speech-capture.js";
 import { instantGreeting } from "./fast-reply.js";
 import {
   supportOptions,
@@ -76,10 +77,11 @@ let view = "welcome",
   pollBusy = false,
   history = [],
   lastPaint = 0,
-  recognition = null,
+  speechCapture = null,
+  outputAudio = null,
+  speechOutputActive = false,
   speechCandidate = "",
-  speechHeard = "",
-  speechSession = 0;
+  speechHeard = "";
 let fingerNeuralLive = false,
   personalProfileId = null,
   demoSession = read("demoPatientId", "") === patient?.patientId && !!patient;
@@ -209,6 +211,7 @@ function theme() {
 theme();
 function show(id) {
   if (!$(id)) return;
+  if (view === "details" && id !== "details") speechCapture?.stop("page-change");
   if (["patient", "details"].includes(id) && !profile) {
     startDemo(id === "details" ? module : null);
     return;
@@ -775,34 +778,71 @@ function replyLanguage(text, requested = settings.language || "auto") {
   if (requested === "bn" || requested === "en") return requested;
   return /[\u0980-\u09ff]/u.test(text) ? "bn" : "en";
 }
+function finishAshaOutput(version, callback) {
+  if (version !== speechVersion) return;
+  speechOutputActive = false;
+  outputAudio = null;
+  speechCapture?.resumeAfterOutput();
+  callback?.();
+}
+function stopAshaOutput() {
+  speechVersion++;
+  outputAudio?.pause();
+  outputAudio = null;
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  speechOutputActive = false;
+  speechCapture?.resumeAfterOutput();
+}
 function say(text, { recording, force = false, language, onDone, onError } = {}) {
   const version = ++speechVersion;
   $("ashaMessage").textContent = text;
   $("detailAshaMessage").textContent = "Asha: " + text;
-  if (!force && profile?.assessment?.canHear === false) { onDone?.(); return; }
-  const saved = recording && read("voice_" + recording, null);
-  if (saved) {
-    if ("speechSynthesis" in window) speechSynthesis.cancel();
-    new Audio(saved).play().catch(() => {});
+  if (!force && profile?.assessment?.canHear === false) {
+    stopAshaOutput();
+    onDone?.();
     return;
   }
-  if (!("speechSynthesis" in window)) { onDone?.(); return; }
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text),
-    chosen = settings.voice || profile?.voice?.name;
-  const spokenLanguage = replyLanguage(text, language),
-    voices = speechSynthesis.getVoices();
-  u.lang = spokenLanguage === "bn" ? "bn-BD" : "en-US";
-  u.voice = voices.find((x) => x.name === chosen && x.lang.toLowerCase().startsWith(spokenLanguage)) ||
-    voices.find((x) => x.lang.toLowerCase().startsWith(spokenLanguage)) || null;
-  u.rate = settings.rate || profile?.voice?.rate || 0.9;
-  u.pitch = profile?.voice?.pitch || 1;
-  u.onend = () => { if (version === speechVersion) onDone?.(); };
-  u.onerror = () => { if (version === speechVersion) onError?.(); };
-  speechSynthesis.speak(u);
+  speechOutputActive = true;
+  speechCapture?.pauseForOutput();
+  outputAudio?.pause();
+  outputAudio = null;
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  const saved = recording && read("voice_" + recording, null);
+  if (saved) {
+    try {
+      const audio = new Audio(saved);
+      outputAudio = audio;
+      audio.onended = () => finishAshaOutput(version, onDone);
+      audio.onerror = () => finishAshaOutput(version, onError);
+      audio.play().catch(() => finishAshaOutput(version, onError));
+    } catch {
+      finishAshaOutput(version, onError);
+    }
+    return;
+  }
+  if (!("speechSynthesis" in window)) {
+    finishAshaOutput(version, onDone);
+    return;
+  }
+  try {
+    const u = new SpeechSynthesisUtterance(text),
+      chosen = settings.voice || profile?.voice?.name;
+    const spokenLanguage = replyLanguage(text, language),
+      voices = speechSynthesis.getVoices();
+    u.lang = spokenLanguage === "bn" ? "bn-BD" : "en-US";
+    u.voice = voices.find((x) => x.name === chosen && x.lang.toLowerCase().startsWith(spokenLanguage)) ||
+      voices.find((x) => x.lang.toLowerCase().startsWith(spokenLanguage)) || null;
+    u.rate = settings.rate || profile?.voice?.rate || 0.9;
+    u.pitch = profile?.voice?.pitch || 1;
+    u.onend = () => finishAshaOutput(version, onDone);
+    u.onerror = () => finishAshaOutput(version, onError);
+    speechSynthesis.speak(u);
+  } catch {
+    finishAshaOutput(version, onError);
+  }
 }
 function voiceBusy() {
-  return "speechSynthesis" in window && speechSynthesis.speaking;
+  return speechOutputActive || ("speechSynthesis" in window && speechSynthesis.speaking);
 }
 $("previewVoice").onclick = () => {
   const old = settings.voice;
@@ -854,8 +894,7 @@ $("quietAsha").onclick = () => {
     if (perception.running) guideCheckIn("routine");
     else say("I'm ready to guide you again. Start support when you are comfortable.");
   } else {
-    speechVersion++;
-    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    stopAshaOutput();
     $("ashaMessage").textContent = "Asha's check-ins are paused. Requests and caregiver messages still work.";
     $("detailAshaMessage").textContent = "Asha: " + $("ashaMessage").textContent;
   }
@@ -1460,6 +1499,7 @@ setInterval(() => {
 }, 10000);
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
+    speechCapture?.stop("page-hidden");
     perception.rest.reset();
     $("monitorStatus").textContent =
       "Monitoring paused while this page is backgrounded.";
@@ -1471,7 +1511,10 @@ document.addEventListener("visibilitychange", () => {
   }
   heartbeat();
 });
-window.addEventListener("pagehide", () => perception.stop());
+window.addEventListener("pagehide", () => {
+  speechCapture?.stop("page-hidden");
+  perception.stop();
+});
 function addChat(text, user = false) {
   const p = document.createElement("p");
   p.className = user ? "chat-user" : "chat-asha";
@@ -1770,7 +1813,7 @@ for (const [id, k] of [
     if (k === "proactive") {
       guide.clear();
       updateQuietAsha();
-      if (!settings.proactive && "speechSynthesis" in window) { speechVersion++; speechSynthesis.cancel(); }
+      if (!settings.proactive) stopAshaOutput();
     }
   };
 $("ashaLanguage").onchange = () => {
@@ -1925,6 +1968,8 @@ function chart(id, label) {
   return `<span class="eyebrow">${label}</span><canvas id="${id}" class="chart" aria-label="${label}"></canvas>`;
 }
 function renderModule() {
+  speechCapture?.stop("module-change");
+  speechCapture = null;
   const isFinger = module === "fingerspeak";
   $("fingerStudioHost").hidden = !isFinger;
   document
@@ -2187,8 +2232,9 @@ function drawChart(id, key, color) {
 function wireSpeech() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   $("speechLanguage").value = settings.speechLanguage === "bn-BD" ? "bn-BD" : "en-US";
+  $("speechStatus").textContent = "Press Start for up to 90 seconds of listening. The mic pauses while Asha speaks; other nearby voices may still be heard. Review words before sending them to AI.";
   $("speechLanguage").onchange = () => {
-    recognition?.stop();
+    speechCapture?.stop("language-change");
     settings.speechLanguage = $("speechLanguage").value;
     save("settings", settings);
     $("speechStatus").textContent = "Listening language updated. Start listening when you are ready.";
@@ -2199,48 +2245,44 @@ function wireSpeech() {
       "Live transcription is not supported here. Use keyboard dictation or type the heard words, then ask Asha to clarify.";
   }
   $("listenSpeech").onclick = () => {
-    recognition?.abort();
-    speechSession++;
-    const n = speechSession;
-    recognition = new SR();
-    recognition.lang = $("speechLanguage").value;
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 3;
-    let final = "";
-    recognition.onresult = (e) => {
-      if (n !== speechSession || !$("heardSpeech")) return;
-      let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) final += e.results[i][0].transcript + " ";
-        else interim += e.results[i][0].transcript;
-      }
-      $("heardSpeech").value = (final + interim).trim();
-    };
-    recognition.onerror = (e) => {
-      if ($("speechStatus"))
-        $("speechStatus").textContent =
-          "Speech capture: " + e.error + ". You can edit the words below.";
-    };
-    recognition.onend = () => {
-      if ($("listenSpeech")) {
-        $("listenSpeech").disabled = false;
-        $("stopSpeech").disabled = true;
-      }
-    };
-    recognition.start();
-    $("listenSpeech").disabled = true;
-    $("stopSpeech").disabled = false;
-    $("speechStatus").textContent =
-      "Listening… speak slowly and comfortably. Stop when finished.";
+    if (!SR) return;
+    if (speechOutputActive) stopAshaOutput();
+    speechCapture?.stop("new-session");
+    const capture = new SpeechCapture({
+      Recognition: SR,
+      durationMs: 90000,
+      onText: (text) => {
+        if (speechCapture === capture && $("heardSpeech")) $("heardSpeech").value = text;
+      },
+      onState: ({ state, reason }) => {
+        if (speechCapture !== capture || !$("speechStatus")) return;
+        const active = state === "listening" || state === "paused";
+        $("listenSpeech").disabled = active;
+        $("stopSpeech").disabled = !active;
+        $("speechStatus").textContent = state === "listening"
+          ? "Listening for up to 90 seconds. Browser silence cutoffs reconnect automatically. Stop when finished."
+          : state === "paused"
+            ? "Listening paused while Asha speaks; it resumes shortly after her voice ends."
+            : state === "complete"
+              ? "90-second listening session complete. Review or edit the words, or start again."
+              : state === "error"
+                ? `Speech capture stopped (${reason || "browser error"}). Review the words or start again.`
+                : "Listening stopped. Review or edit the words below.";
+      },
+    });
+    speechCapture = capture;
+    capture.start({
+      language: $("speechLanguage").value,
+      initialText: $("heardSpeech").value,
+    });
   };
-  $("stopSpeech").onclick = () => recognition?.stop();
+  $("stopSpeech").onclick = () => speechCapture?.stop("manual");
   $("hearTarget").onclick = () =>
     say($("speechTarget").value || "Choose a comfortable phrase to practice.", {
       force: true,
     });
   $("interpretSpeech").onclick = async () => {
-    recognition?.stop();
+    speechCapture?.stop("interpret");
     const heard = $("heardSpeech").value.trim();
     if (!heard) {
       toast("Say or type the heard words first.");
