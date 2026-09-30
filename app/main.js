@@ -170,11 +170,14 @@ let settings = read("settings", {
     scan: false,
     voice: "",
     rate: 0.9,
+    language: "auto",
+    speechLanguage: "en-US",
   }),
   trained = read("calibration_" + patient?.patientId, null),
   handMaps = read("handmap_" + patient?.patientId, {}),
   pendingHandTraining = null;
 const conversation = [];
+const ashaResponseSessions = new WeakMap();
 const gate = new RequestGate(),
   guide = new CompanionGuide(),
   perception = new Perception($("camera"), $("overlay"));
@@ -767,7 +770,11 @@ if ("speechSynthesis" in window) {
   voiceList();
   speechSynthesis.onvoiceschanged = voiceList;
 }
-function say(text, { recording, force = false, onDone, onError } = {}) {
+function replyLanguage(text, requested = settings.language || "auto") {
+  if (requested === "bn" || requested === "en") return requested;
+  return /[\u0980-\u09ff]/u.test(text) ? "bn" : "en";
+}
+function say(text, { recording, force = false, language, onDone, onError } = {}) {
   const version = ++speechVersion;
   $("ashaMessage").textContent = text;
   $("detailAshaMessage").textContent = "Asha: " + text;
@@ -782,7 +789,11 @@ function say(text, { recording, force = false, onDone, onError } = {}) {
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text),
     chosen = settings.voice || profile?.voice?.name;
-  u.voice = speechSynthesis.getVoices().find((x) => x.name === chosen) || null;
+  const spokenLanguage = replyLanguage(text, language),
+    voices = speechSynthesis.getVoices();
+  u.lang = spokenLanguage === "bn" ? "bn-BD" : "en-US";
+  u.voice = voices.find((x) => x.name === chosen && x.lang.toLowerCase().startsWith(spokenLanguage)) ||
+    voices.find((x) => x.lang.toLowerCase().startsWith(spokenLanguage)) || null;
   u.rate = settings.rate || profile?.voice?.rate || 0.9;
   u.pitch = profile?.voice?.pitch || 1;
   u.onend = () => { if (version === speechVersion) onDone?.(); };
@@ -1468,12 +1479,94 @@ function addChat(text, user = false) {
   p.scrollIntoView({ block: "nearest" });
   return p;
 }
+function ashaDetails(result) {
+  const sources = Array.isArray(result.sources) ? result.sources.slice(0, 6) : [],
+    orchestration = result.orchestration;
+  if (!sources.length && !orchestration) return null;
+  const details = document.createElement("details"),
+    summary = document.createElement("summary");
+  details.className = "small muted";
+  summary.textContent = "Details";
+  details.append(summary);
+  const line = (text) => {
+    const p = document.createElement("p");
+    p.textContent = String(text).slice(0, 1200);
+    details.append(p);
+  };
+  if (orchestration) {
+    if (orchestration.task) line("Task: " + orchestration.task);
+    if (typeof orchestration.model === "string") line("Model: " + orchestration.model);
+    for (const step of (Array.isArray(orchestration.steps) ? orchestration.steps : []).slice(0, 10))
+      if (step && typeof step.tool === "string") line(step.tool + " · " + String(step.status || "completed"));
+    line(orchestration.verified === true
+      ? "Format and action checks passed. Any caregiver request still needs your separate confirmation."
+      : "No verified action is available from this response.");
+  }
+  for (const source of sources) {
+    if (!source || typeof source !== "object") continue;
+    const title = document.createElement("strong");
+    title.textContent = String(source.title || "Supporting information").slice(0, 180);
+    details.append(title);
+    if (source.text) line(source.text);
+    if (source.source) line("Source: " + source.source);
+  }
+  return details;
+}
+function presentAshaActions(result, message, context) {
+  const container = document.createElement("div");
+  container.className = "actions";
+  const details = ashaDetails(result);
+  if (details) message.after(details);
+  const proposal = result.orchestration?.verified === true && result.proposal,
+    allowed = ["water", "food", "toilet", "comfort", "help", "message"],
+    canPropose = () => ["patient", "details"].includes(view) &&
+      personalId() === context.patientId && !gate.pending && !calibration;
+  let opened = false;
+  if (proposal && allowed.includes(proposal.kind) && typeof proposal.text === "string" && proposal.text.trim()) {
+    const review = document.createElement("button");
+    review.type = "button";
+    review.className = "secondary";
+    review.textContent = "Review caregiver request";
+    const openProposal = () => {
+      if (!canPropose()) {
+        toast("Return to this patient’s page and finish the current confirmation or calibration first.");
+        return false;
+      }
+      propose(proposal.kind, "asha", proposal.text.trim().slice(0, 250));
+      return !!gate.pending;
+    };
+    review.onclick = openProposal;
+    container.append(review);
+    if (view === context.view && canPropose()) opened = openProposal();
+  }
+  if (result.orchestration?.verified === true &&
+      ["facespeak", "fingerspeak", "senseassist", "vitalsense", "posture"].includes(result.suggestedModule)) {
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "secondary";
+    open.textContent = "Open " + names[result.suggestedModule];
+    open.onclick = () => {
+      if (gate.pending || calibration) {
+        toast("Finish the current confirmation or calibration before opening another module.");
+        return;
+      }
+      module = result.suggestedModule;
+      $("modeBadge").textContent = names[module];
+      show("details");
+    };
+    container.append(open);
+  }
+  if (container.childElementCount) (details || message).after(container);
+  return opened;
+}
 function openChat() {
   $("chatPanel").hidden = false;
   $("chatInput").focus();
 }
 $("closeChat").onclick = () => ($("chatPanel").hidden = true);
 function immediateAppGuide(text) {
+  // Generated replies handle the selected language; local shortcuts are English.
+  if (["bn", "mixed"].includes(settings.language) || /[\u0980-\u09ff]/u.test(text)) return null;
   const q = text.toLowerCase().replace(/[?!.,]/g, "").trim();
   if (
     [
@@ -1515,34 +1608,41 @@ async function askAsha(text, options = {}) {
     settings.cloud = true;
     save("settings", settings);
   }
-  const learned =
-    options.mode === "interpret"
-      ? read("speech_" + personalId(), [])
-          .slice(-2)
-          .map((x) => `${x.heard} → ${x.confirmed}`)
-          .join("; ")
-      : "";
+  const savedMemories = read("speech_" + personalId(), []),
+    confirmedMemories = options.mode === "interpret" && Array.isArray(savedMemories)
+      ? savedMemories
+          // The older schema also wrote pairs only after "Yes, speak this".
+          .map((x) => x && typeof x.confirmed === "string"
+            ? { heard: x.heard, confirmedText: x.confirmed, confirmed: true }
+            : x)
+          .filter((x) => x && x.confirmed === true && typeof x.heard === "string" && typeof x.confirmedText === "string" &&
+            x.heard.trim().length > 0 && x.heard.length <= 180 &&
+            x.confirmedText.trim().length > 0 && x.confirmedText.length <= 180)
+          .slice(-20)
+          .map((x) => ({ heard: x.heard, confirmedText: x.confirmedText, confirmed: true }))
+      : [];
   const request = {
     text,
     module: view === "caregiver" ? "caregiver" : module,
-    context:
-      (options.context ||
-        `Camera ${perception.running ? "on" : "off"}; posture ${perception.snapshot.posture?.label || "unavailable"}`) +
-      (learned ? " Previously confirmed: " + learned : ""),
+    context: options.context ||
+      `Camera ${perception.running ? "on" : "off"}; posture ${perception.snapshot.posture?.label || "unavailable"}`,
     mode: options.mode || "chat",
     history: conversation.slice(-6),
     consent: true,
-    language: options.language || "en",
+    language: options.language || settings.language || "auto",
+    confirmedMemories,
   };
   const chatCredential = credential();
-  let reply;
+  let reply, responseCredential = chatCredential;
   try {
     reply = await call("asha", { cred: chatCredential, body: request });
   } catch (error) {
     if (error.status !== 401 || !demoSession || view === "caregiver") throw error;
     if (!(await renewDemoSession(chatCredential))) throw error;
-    reply = await call("asha", { cred: patient, body: request });
+    responseCredential = patient;
+    reply = await call("asha", { cred: responseCredential, body: request });
   }
+  ashaResponseSessions.set(reply, responseCredential.patientId);
   if (reply.reply) {
     conversation.push(
       { role: "user", text },
@@ -1556,6 +1656,7 @@ $("chatForm").onsubmit = async (e) => {
   e.preventDefault();
   const text = $("chatInput").value.trim();
   if (!text) return;
+  const context = { patientId: personalId(), view, demo: demoSession };
   addChat(text, true);
   $("chatInput").value = "";
   const immediate = immediateAppGuide(text);
@@ -1577,8 +1678,11 @@ $("chatForm").onsubmit = async (e) => {
   }, 1500);
   try {
     const d = await askAsha(text);
+    if (context.demo && demoSession && ashaResponseSessions.get(d) === personalId())
+      context.patientId = personalId();
     p.textContent = d.reply;
-    say(d.reply);
+    if (!presentAshaActions(d, p, context) && !gate.pending && !calibration)
+      say(d.reply, { language: d.language });
     $("cloudBadge").textContent = "Asha connected";
   } catch (err) {
     p.textContent = err.message;
@@ -1596,7 +1700,7 @@ $("chatForm").onsubmit = async (e) => {
 $("moduleAdvice").onclick = () => {
   openChat();
   $("chatInput").value =
-    "Guide me through " + names[module] + " based on my assessment.";
+    "Given my assessment, what should I try first in " + names[module] + "?";
 };
 $("careAdvice").onclick = () => {
   openChat();
@@ -1640,6 +1744,7 @@ function renderSettings() {
   $("autoScan").checked = settings.scan;
   $("voiceSelect").value = settings.voice;
   $("voiceRate").value = settings.rate;
+  $("ashaLanguage").value = settings.language || "auto";
   updateQuietAsha();
 }
 for (const [id, k] of [
@@ -1661,6 +1766,12 @@ for (const [id, k] of [
       if (!settings.proactive && "speechSynthesis" in window) { speechVersion++; speechSynthesis.cancel(); }
     }
   };
+$("ashaLanguage").onchange = () => {
+  settings.language = $("ashaLanguage").value;
+  if (settings.language === "bn") settings.speechLanguage = "bn-BD";
+  if (settings.language === "en") settings.speechLanguage = "en-US";
+  save("settings", settings);
+};
 $("voiceSelect").onchange = () => {
   settings.voice = $("voiceSelect").value;
   save("settings", settings);
@@ -1671,7 +1782,9 @@ $("voiceRate").oninput = () => {
   save("settings", settings);
 };
 $("testVoice").onclick = () =>
-  say("I’m here with you. What would make you more comfortable?", {
+  say(settings.language === "bn" || settings.language === "mixed"
+    ? "আমি আপনার পাশে আছি। আপনার কী প্রয়োজন?"
+    : "I’m here with you. What would make you more comfortable?", {
     force: true,
   });
 $("editAssessment").onclick = () => {
@@ -1829,7 +1942,7 @@ function renderModule() {
     html = `<div class="card"><span class="eyebrow">SHARED ACROSS EVERY INTERFACE</span><h2>Body posture</h2><p class="muted">Position the camera so shoulders and, if possible, hips are visible. Lightweight body tracking stays active in every module. A sustained change can prompt a gentle check-in.</p><div class="metrics">${metric("Observed position", "poseLabel")}${metric("Shoulder tilt", "poseTilt")}${metric("Body movement", "poseMotion")}</div>${chart("poseChart", "POSTURE TREND")}<button id="enableYolo" class="secondary">${perception.yoloEnabled ? "Pause" : "Enable"} YOLO cross-check</button><p id="yoloStatus" class="small muted">YOLO26 pose runs in its own worker. It is an optional, heavier second model; lightweight pose remains active.</p><p class="small muted">Rest-to-awake check-in requires one minute of valid closed-eye, still-body observations followed by eyes opening and body movement. It does not identify sleep stages or diagnose falls or pain.</p></div>`;
   }
   if (module === "senseassist") {
-    html = `<div class="card"><span class="eyebrow">YOUR WORDS, MORE CLEARLY</span><h2>SenseAssist</h2><p class="muted">Practice a phrase or clarify something you want to say. Review the heard words, then Asha suggests the closest intended meaning.</p><label class="field">Practice phrase / context (optional)<input id="speechTarget" maxlength="150" placeholder="e.g. red rabbit green"></label><div class="actions"><button id="listenSpeech" class="primary">Start listening</button><button id="stopSpeech" class="secondary" disabled>Stop</button><button id="hearTarget" class="secondary">Hear phrase</button></div><p id="speechStatus" class="small muted">Microphone speech recognition depends on your browser and may use its online service. Only the reviewed words are sent to Asha.</p><label class="field">What was heard · editable<textarea id="heardSpeech" maxlength="600" placeholder="For example: wed wabbit wghreen"></textarea></label><button id="interpretSpeech" class="primary">Make my meaning clearer →</button><div id="speechResult"></div><button id="practiceAdvice" class="text-button">Ask Asha for a practice cue →</button></div>`;
+    html = `<div class="card"><span class="eyebrow">YOUR WORDS, MORE CLEARLY</span><h2>SenseAssist</h2><p class="muted">Practice a phrase or clarify something you want to say. Review the heard words, then Asha suggests the closest intended meaning.</p><label class="field">Practice phrase / context (optional)<input id="speechTarget" maxlength="150" placeholder="e.g. red rabbit green"></label><label class="field">Listening language<select id="speechLanguage"><option value="en-US">English</option><option value="bn-BD">বাংলা · Bangla</option></select></label><p class="small muted">Choose the language you are speaking. For mixed speech, choose the main language and edit any missed words before asking Asha.</p><div class="actions"><button id="listenSpeech" class="primary">Start listening</button><button id="stopSpeech" class="secondary" disabled>Stop</button><button id="hearTarget" class="secondary">Hear phrase</button></div><p id="speechStatus" class="small muted">Microphone speech recognition depends on your browser and may use its online service. Only the reviewed words are sent to Asha.</p><label class="field">What was heard · editable<textarea id="heardSpeech" maxlength="600" placeholder="For example: wed wabbit wghreen"></textarea></label><button id="interpretSpeech" class="primary">Make my meaning clearer →</button><div id="speechResult"></div><button id="practiceAdvice" class="text-button">Ask Asha for a practice cue →</button></div>`;
   }
   if (isFinger) {
     ensureFingerStudio();
@@ -2066,6 +2179,13 @@ function drawChart(id, key, color) {
 }
 function wireSpeech() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  $("speechLanguage").value = settings.speechLanguage === "bn-BD" ? "bn-BD" : "en-US";
+  $("speechLanguage").onchange = () => {
+    recognition?.stop();
+    settings.speechLanguage = $("speechLanguage").value;
+    save("settings", settings);
+    $("speechStatus").textContent = "Listening language updated. Start listening when you are ready.";
+  };
   if (!SR) {
     $("listenSpeech").disabled = true;
     $("speechStatus").textContent =
@@ -2076,7 +2196,7 @@ function wireSpeech() {
     speechSession++;
     const n = speechSession;
     recognition = new SR();
-    recognition.lang = "en-US";
+    recognition.lang = $("speechLanguage").value;
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.maxAlternatives = 3;
@@ -2119,7 +2239,10 @@ function wireSpeech() {
       toast("Say or type the heard words first.");
       return;
     }
-    const button = $("interpretSpeech");
+    const button = $("interpretSpeech"),
+      resultPatientId = personalId(),
+      resultWasDemo = demoSession;
+    let resultNode = $("speechResult");
     button.disabled = true;
     $("speechResult").innerHTML =
       '<p class="muted">Asha is listening to your meaning…</p>';
@@ -2128,14 +2251,24 @@ function wireSpeech() {
         mode: "interpret",
         context: $("speechTarget").value,
       });
+      // Preserve a recovered demo reply without applying it to another patient.
+      if (ashaResponseSessions.get(d) !== personalId()) return;
+      if (resultNode !== $("speechResult")) {
+        if (!resultWasDemo || !demoSession || resultPatientId === personalId() || !$("speechResult")) return;
+        resultNode = $("speechResult");
+        $("heardSpeech").value = heard;
+      }
       speechCandidate = d.candidate;
       speechHeard = heard;
       $("speechResult").innerHTML =
         `<div class="divider"></div><span class="eyebrow">POSSIBLE MEANING · PLEASE CONFIRM</span><p class="speech-result">${esc(d.candidate)}</p><p>${esc(d.question)}</p>${d.alternatives.map((x) => `<button class="secondary" data-alternative="${esc(x)}">${esc(x)}</button>`).join("")}<div class="actions"><button id="speakCandidate" class="primary">Yes, speak this</button><button id="sendCandidate" class="secondary">Send to caregiver</button><button id="retrySpeech" class="text-button">That’s not right</button></div>`;
+      const details = ashaDetails(d);
+      if (details) $("speechResult").append(details);
       $("speakCandidate").onclick = () => {
-        say(speechCandidate, { force: true });
-        const memory = read("speech_" + personalId(), []);
-        memory.push({ heard: speechHeard, confirmed: speechCandidate });
+        say(speechCandidate, { force: true, language: d.language });
+        const stored = read("speech_" + personalId(), []),
+          memory = Array.isArray(stored) ? stored : [];
+        memory.push({ heard: speechHeard, confirmedText: speechCandidate, confirmed: true });
         save("speech_" + personalId(), memory.slice(-30));
         toast("Confirmed wording saved on this device.");
       };
@@ -2154,7 +2287,8 @@ function wireSpeech() {
           }),
       );
     } catch (e) {
-      $("speechResult").textContent = e.message;
+      if (resultNode === $("speechResult") && resultPatientId === personalId())
+        resultNode.textContent = e.message;
     } finally {
       button.disabled = false;
     }

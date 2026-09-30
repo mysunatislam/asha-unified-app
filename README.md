@@ -42,6 +42,16 @@ Choose **Explore live demo** on the first page or open a direct `?module=` link.
 - Patient-scoped caregiver requests, separate hashed role tokens, idempotent retries, received/acknowledged receipts, current status, multiple assigned patients, and optional web push. Notification bodies contain no patient details.
 - API keys are server environment variables only. Private storage namespace, rate limits, origin checks, consent, no-store responses, and daily expired-session cleanup.
 
+## Asha model routing and retrieval
+
+Asha routes English conversation to the configured Gemini Flash profile, unclear speech to the configured GPT profile, and Bangla or Bangla-English conversation to the configured Claude Opus profile. Settings offers automatic, English, Bangla and mixed conversation; SenseAssist has a separate microphone listening language. This routing is a product choice, not a claim that any model is clinically best for a language or speech impairment.
+
+The server retrieves short, relevant excerpts from the `okf/` knowledge bundle and that patient's explicitly confirmed speech corrections stored on the device. The bundle has eight Markdown concepts with OKF v0.2-style frontmatter, provenance and draft status. `okf/compile.mjs` checks each concept against the versioned application guide and generates `okf/generated.js`; Vercel imports that static corpus at runtime. The recorded machine verification means source-text parity only, not human or clinical review. These excerpts are sent as reference data in the prompt. The coordinator asks Maira for a structured answer, checks its format and cited source IDs, and verifies proposed actions against the patient's explicit request. These checks do not establish the factual or clinical correctness of generated text.
+
+The only AI-proposed actions are an optional module suggestion and a caregiver-request proposal. A request still needs the separate patient confirmation before any event is sent. Negated, hypothetical and ambiguous needs do not propose requests. Response Details displays the selected model, retrieved excerpts and checks. The orchestration is implemented by this app around Maira's text API; it does not claim undocumented native tool-calling support.
+
+Keys and profile IDs remain server-side. Optional profile overrides are `MAIRA_CHAT_PROFILE_ID`, `MAIRA_SPEECH_PROFILE_ID` and `MAIRA_BILINGUAL_PROFILE_ID`. Legacy `MAIRA_GPT_PROFILE_ID` applies only to chat. A missing selected model returns an explicit error. Confirmed speech wording stays scoped to the current patient and is sent only when cloud assistance is enabled.
+
 ## Important current limits
 
 This is a functioning demonstration application, **not a validated clinical or emergency monitoring device**. Camera-derived posture, facial asymmetry and pulse are engineering observations. Do not rely on it as the only means of obtaining assistance.

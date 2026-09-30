@@ -72,7 +72,7 @@ export function eventValue(x) {
   return {
     kind: x.kind,
     text: clean(x.text, 250),
-    source: ["touch", "face", "hand", "speech", "monitor"].includes(x.source)
+    source: ["touch", "face", "hand", "speech", "monitor", "asha"].includes(x.source)
       ? x.source
       : "touch",
     confirmed: x.confirmed === true,
