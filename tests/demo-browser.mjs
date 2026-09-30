@@ -67,7 +67,7 @@ try {
   }
   assert.equal(await page.evaluate(() => window.cameraOpenCount), 1);
   await page.locator("#moduleAdvice").click();
-  await page.locator("#chatInput").fill("hi");
+  await page.locator("#chatInput").fill("Please explain this module's controls");
   await page.locator("#chatForm button").click();
   await page.waitForFunction(() => document.getElementById("chatMessages").textContent.includes("I can guide you through this module."));
   assert.equal(aiRequests.length, 1);

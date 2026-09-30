@@ -4,6 +4,7 @@ import { faceStudio, paintFaceStudio } from "./face-studio.js";
 import { RequestGate, recommendations, clamp } from "./signals.js";
 import { CompanionGuide, responsePlan, confirmationMatches } from "./companion-guide.js";
 import { BlinkIntent, RAPID_BLINK, CONFIRM_BLINK } from "./blink-intent.js";
+import { instantGreeting } from "./fast-reply.js";
 import {
   supportOptions,
   supportGoals,
@@ -1565,6 +1566,12 @@ function openChat() {
 }
 $("closeChat").onclick = () => ($("chatPanel").hidden = true);
 function immediateAppGuide(text) {
+  const greeting = instantGreeting(text, {
+    language: settings.language,
+    view,
+    moduleName: names[module],
+  });
+  if (greeting) return greeting;
   // Generated replies handle the selected language; local shortcuts are English.
   if (["bn", "mixed"].includes(settings.language) || /[\u0980-\u09ff]/u.test(text)) return null;
   const q = text.toLowerCase().replace(/[?!.,]/g, "").trim();

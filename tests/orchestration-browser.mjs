@@ -122,6 +122,13 @@ try {
   await page.locator("#cloudConsent").check();
   await page.locator("#settingsBack").click();
   await page.locator("#bubbleHandle").click();
+  await page.locator("#chatInput").fill("Hi!");
+  await page.locator("#chatForm button").click();
+  await page.waitForFunction(() =>
+    document.getElementById("chatMessages").textContent.includes("Hi, I'm Asha."),
+  );
+  assert.equal(aiRequests.length, 0, "simple greeting must not wait for the AI API");
+  assert.equal(events.length, 0, "greeting must never create a caregiver event");
   await page.locator("#chatInput").fill("I need water");
   await page.locator("#chatForm button").click();
   await page.waitForFunction(

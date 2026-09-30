@@ -78,7 +78,7 @@ try {
   await page.locator("#details:not([hidden])").waitFor();
   assert.equal(creates, 1);
   await page.locator("#moduleAdvice").click();
-  await page.locator("#chatInput").fill("hi");
+  await page.locator("#chatInput").fill("Please explain this module's controls");
   invalidateFirst = true;
   await page.locator("#chatForm button").click();
   await page.waitForFunction(() =>
@@ -151,7 +151,7 @@ try {
   );
   await privatePage.locator("#patient:not([hidden])").waitFor();
   await privatePage.locator("#bubbleHandle").click();
-  await privatePage.locator("#chatInput").fill("hi");
+  await privatePage.locator("#chatInput").fill("Please explain this module's controls");
   privateExpired = true;
   await privatePage.locator("#chatForm button").click();
   await privatePage.waitForFunction(() =>
