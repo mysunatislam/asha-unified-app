@@ -26,6 +26,52 @@ function assertAppLink(href, module) {
   if (module) assert.equal(target.searchParams.get("module"), module);
   return target;
 }
+async function assertTeamAvatars(page, viewportWidth) {
+  const avatars = await page.locator(".team-avatar").evaluateAll((items) =>
+    items.map((item) => {
+      const box = item.getBoundingClientRect(),
+        style = getComputedStyle(item);
+      return {
+        width: box.width,
+        height: box.height,
+        radii: [
+          style.borderTopLeftRadius,
+          style.borderTopRightRadius,
+          style.borderBottomRightRadius,
+          style.borderBottomLeftRadius,
+        ],
+        portraits: item.querySelectorAll("img.team-photo").length,
+      };
+    }),
+  );
+  assert.equal(
+    avatars.length,
+    3,
+    `three circular portraits at ${viewportWidth}px`,
+  );
+  for (const avatar of avatars) {
+    assert.equal(
+      avatar.portraits,
+      1,
+      "each avatar wraps one supplied portrait",
+    );
+    assert.ok(
+      avatar.width > 0 && avatar.width <= 120,
+      `small avatar at ${viewportWidth}px`,
+    );
+    assert.ok(
+      Math.abs(avatar.width - avatar.height) < 0.5,
+      "avatar must be square",
+    );
+    assert.ok(
+      avatar.radii.every(
+        (radius) =>
+          parseFloat(radius) >= (radius.includes("%") ? 50 : avatar.width / 2),
+      ),
+      "avatar must have a circular border radius",
+    );
+  }
+}
 const browser = await chromium.launch({
   headless: true,
   executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
@@ -276,6 +322,7 @@ try {
   const layouts = [];
   for (const width of [360, 390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 844 });
+    await assertTeamAvatars(page, width);
     if (
       await page.evaluate(
         () => document.documentElement.scrollWidth > innerWidth,
@@ -391,6 +438,7 @@ try {
     separateWebsiteLinksToProductionApp: true,
     hardwarePlansAndContactSections: true,
     suppliedTeamPortraitsLoaded: true,
+    smallCircularTeamPortraitsAtAllWidths: true,
     enquiryRequiresConsentAndDisclosesDraftOnly: true,
     keyboardTabs: true,
     allModules: true,

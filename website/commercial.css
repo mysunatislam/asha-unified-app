@@ -257,14 +257,25 @@
   border-top: 0;
   min-width: 0;
 }
+.team-avatar {
+  width: 112px;
+  height: 112px;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  box-shadow: 0 0 0 5px var(--wash);
+  background: var(--sky);
+}
 .team-photo {
   display: block;
   width: 100%;
-  height: auto;
-  aspect-ratio: 4/5;
+  height: 100%;
+  aspect-ratio: 1;
   object-fit: cover;
   object-position: center;
-  border-radius: 18px;
+  border-radius: 0;
+  transform: scale(2.4);
+  transform-origin: 50% var(--portrait-focus, 50%);
   background: var(--sky);
 }
 .team-info {
@@ -662,10 +673,9 @@
   .team-section .team-grid article {
     display: block;
   }
-  .team-photo {
-    aspect-ratio: 1/1.15;
-    object-position: center 45%;
-    border-radius: 15px;
+  .team-avatar {
+    width: 96px;
+    height: 96px;
   }
   .team-section .team-grid h3 {
     font-size: 1.3rem;
