@@ -78,11 +78,172 @@ try {
     [],
     "the separate website must not send visitors to its own /app",
   );
+  for (const id of ["hardware", "plans", "contact"]) {
+    const section = page.locator(`#${id}`);
+    assert.equal(await section.count(), 1, `${id} needs a unique section`);
+    assert.ok(
+      await section.locator("h2, h3").first().isVisible(),
+      `${id} needs a visible heading`,
+    );
+    assert.ok(
+      (await page.locator(`a[href="#${id}"]`).count()) > 0,
+      `${id} needs a working navigation or call-to-action anchor`,
+    );
+  }
+  const hardware = await page.locator("#hardware").innerText();
+  for (const component of [/camera/i, /switch/i, /mount/i])
+    assert.match(
+      hardware,
+      component,
+      "the optional kit should explain its components",
+    );
+  assert.match(hardware, /optional/i, "the kit must remain optional");
+  assert.match(hardware, /\$\s*100\b/, "show the planned one-time kit price");
+  assert.match(
+    hardware,
+    /phone|tablet/i,
+    "explain which main device is needed",
+  );
+  assert.match(
+    hardware,
+    /not included|excluded/i,
+    "the main device is excluded from the kit",
+  );
+  assert.match(
+    hardware,
+    /subscription.{0,100}separate|separate.{0,100}subscription/is,
+  );
+  const plans = await page.locator("#plans").innerText();
+  assert.match(
+    plans,
+    /planned|proposed/i,
+    "pricing must be described as planned",
+  );
+  assert.match(plans, /ASHA\s+PLUS/i);
+  assert.match(plans, /ASHA\s+PRO/i);
+  assert.match(plans, /\$\s*5\b/);
+  assert.match(plans, /\$\s*12\b/);
+  assert.match(plans, /month|monthly/i);
+  const portraits = page.locator("img.team-photo");
+  assert.equal(
+    await portraits.count(),
+    3,
+    "show the three supplied team portraits",
+  );
+  for (const portrait of await portraits.all()) {
+    assert.ok(
+      (await portrait.getAttribute("alt"))?.trim(),
+      "team portraits need nonempty alternative text",
+    );
+    await portrait.scrollIntoViewIfNeeded();
+    await page.waitForFunction(
+      (image) => image.complete,
+      await portrait.elementHandle(),
+      { timeout: 15000 },
+    );
+    assert.ok(
+      await portrait.evaluate(
+        (image) => image.complete && image.naturalWidth > 0,
+      ),
+      "each supplied portrait must load successfully",
+    );
+  }
+  const enquiry = page.locator("#contactForm");
+  assert.equal(
+    await enquiry.count(),
+    1,
+    "contact must provide one enquiry form",
+  );
+  assert.equal(await enquiry.evaluate((form) => form.checkValidity()), false);
+  assert.equal(
+    await page.locator("#enquiryEmail").getAttribute("type"),
+    "email",
+  );
+  assert.equal(
+    await page.locator("#enquiryConsent").getAttribute("type"),
+    "checkbox",
+  );
+  assert.ok(
+    (await page.locator("#enquiryConsent").getAttribute("required")) !== null,
+  );
+  assert.equal(
+    await page.locator("#whatsappEnquiry").getAttribute("type"),
+    "button",
+  );
+  assert.ok(
+    (await page
+      .locator('#contact a[href="mailto:mysunatislam@gmail.com"]')
+      .count()) > 0,
+    "show the team's confirmed public email",
+  );
+  assert.ok(
+    (await page.locator('#contact a[href="tel:+8801641576801"]').count()) > 0,
+    "show the team's confirmed public phone number",
+  );
+  const draftNotice = await page.locator("#contactStatus").innerText();
+  assert.match(
+    draftNotice,
+    /draft/i,
+    "the enquiry flow must say that it opens a draft",
+  );
+  assert.match(
+    draftNotice,
+    /not\s+sent|nothing.{0,40}sent|not.{0,40}confirm|confirmation.{0,60}reply/is,
+    "the enquiry flow must not claim that opening a draft sends or confirms a booking",
+  );
+  for (const interest of ["demo", "kit", "hospital", "homecare"]) {
+    const cta = page.locator(`[data-enquiry-interest="${interest}"]`).first();
+    assert.ok(await cta.count(), `${interest} needs an enquiry call-to-action`);
+    await cta.click();
+    assert.equal(await page.locator("#enquiryInterest").inputValue(), interest);
+  }
+  await page.locator("#enquiryName").fill("Website QA");
+  await page.locator("#enquiryEmail").fill("qa@example.invalid");
+  await page.locator("#enquiryOrganisation").fill("Local browser verification");
+  await page
+    .locator("#enquiryMessage")
+    .fill("Test enquiry draft; do not send.");
+  assert.equal(
+    await enquiry.evaluate((form) => form.checkValidity()),
+    false,
+    "enquiry consent must be required",
+  );
+  await page.locator("#enquiryConsent").check();
+  assert.equal(await enquiry.evaluate((form) => form.checkValidity()), true);
+  assert.equal(await page.locator("#contactStatus").innerText(), draftNotice);
+  // Capture the browser handoff without opening WhatsApp or sending anything.
+  await page.evaluate(() => {
+    window.websiteDraftUrls = [];
+    window.open = (url, target, features) => {
+      window.websiteDraftUrls.push({ url, target, features });
+      return null;
+    };
+  });
+  await page.locator("#whatsappEnquiry").click();
+  const handoff = await page.evaluate(() => window.websiteDraftUrls);
+  assert.equal(handoff.length, 1);
+  const whatsapp = new URL(handoff[0].url);
+  assert.equal(whatsapp.origin, "https://wa.me");
+  assert.equal(whatsapp.pathname, "/8801641576801");
+  assert.match(whatsapp.searchParams.get("text"), /Website QA/);
+  assert.match(whatsapp.searchParams.get("text"), /not a confirmed booking/);
+  assert.match(
+    await page.locator("#contactStatus").innerText(),
+    /nothing has been sent/i,
+  );
+  assert.equal(handoff[0].features, "noopener,noreferrer");
+  await enquiry.evaluate((form) => form.reset());
+  assert.equal(await page.locator("#contactStatus").innerText(), draftNotice);
+  await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({
     path: "artifacts/summit/desktop-light.png",
     fullPage: true,
   });
   await page.screenshot({ path: "artifacts/summit/hero-desktop.png" });
+  for (const id of ["hardware", "plans", "team", "contact"])
+    await page
+      .locator(`#${id}`)
+      .screenshot({ path: `artifacts/summit/${id}-desktop.png` });
   for (const id of ["face", "hand", "speech", "vitals", "posture"]) {
     await page.locator(`#tab-${id}`).click();
     assert.equal(
@@ -160,6 +321,10 @@ try {
     fullPage: true,
   });
   await page.screenshot({ path: "artifacts/summit/hero-mobile.png" });
+  for (const id of ["hardware", "plans", "team", "contact"])
+    await page
+      .locator(`#${id}`)
+      .screenshot({ path: `artifacts/summit/${id}-mobile.png` });
   await page.locator("#siteTheme").click();
   await page.screenshot({
     path: "artifacts/summit/mobile-dark.png",
@@ -224,6 +389,9 @@ try {
     layouts,
     publicPageLoadsNoApp: true,
     separateWebsiteLinksToProductionApp: true,
+    hardwarePlansAndContactSections: true,
+    suppliedTeamPortraitsLoaded: true,
+    enquiryRequiresConsentAndDisclosesDraftOnly: true,
     keyboardTabs: true,
     allModules: true,
     legacyModuleLink: true,

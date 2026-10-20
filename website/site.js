@@ -1,3 +1,4 @@
+import { buildEnquiryDraft, INTERESTS } from "./enquiry.js";
 // The public website imports no camera, speech or AI engines.
 const query = new URLSearchParams(location.search);
 if (query.has("module") || query.has("role"))
@@ -45,6 +46,58 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeMenu();
 });
 document.getElementById("year").textContent = new Date().getFullYear();
+const enquiryForm = document.getElementById("contactForm");
+const contactStatus = document.getElementById("contactStatus");
+const initialContactStatus = contactStatus.textContent;
+enquiryForm.addEventListener("reset", () => {
+  delete contactStatus.dataset.state;
+  contactStatus.textContent = initialContactStatus;
+});
+document.querySelectorAll("[data-enquiry-interest]").forEach((link) =>
+  link.addEventListener("click", () => {
+    const interest = link.dataset.enquiryInterest;
+    if (Object.hasOwn(INTERESTS, interest))
+      document.getElementById("enquiryInterest").value = interest;
+    requestAnimationFrame(() =>
+      document.getElementById("enquiryName").focus({ preventScroll: true }),
+    );
+  }),
+);
+function enquiryDraft() {
+  if (!enquiryForm.reportValidity()) return null;
+  const fields = new FormData(enquiryForm);
+  try {
+    return buildEnquiryDraft({
+      name: fields.get("name"),
+      email: fields.get("email"),
+      organisation: fields.get("organisation"),
+      interest: fields.get("interest"),
+      message: fields.get("message"),
+      consent: fields.has("consent"),
+    });
+  } catch (error) {
+    contactStatus.dataset.state = "error";
+    contactStatus.textContent = error.message;
+    return null;
+  }
+}
+enquiryForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const draft = enquiryDraft();
+  if (!draft) return;
+  contactStatus.dataset.state = "draft";
+  contactStatus.textContent =
+    "Email draft prepared. Send it from your mail app; nothing has been sent by this website. Your booking is not confirmed until the team replies. If your mail app does not open, use the email or WhatsApp link.";
+  window.location.assign(draft.emailUrl);
+});
+document.getElementById("whatsappEnquiry").addEventListener("click", () => {
+  const draft = enquiryDraft();
+  if (!draft) return;
+  window.open(draft.whatsappUrl, "_blank", "noopener,noreferrer");
+  contactStatus.dataset.state = "draft";
+  contactStatus.textContent =
+    "WhatsApp draft prepared. Review it and press Send in WhatsApp; nothing has been sent by this website. Your booking is not confirmed until the team replies.";
+});
 const features = {
   face: [
     "FACE + EYES",
