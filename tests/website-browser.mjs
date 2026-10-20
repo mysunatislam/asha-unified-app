@@ -5,7 +5,27 @@ const require = createRequire(import.meta.url);
 const {
   chromium,
 } = require("C:/Users/user/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright");
-const base = process.env.ASHA_TEST_BASE || "http://127.0.0.1:4180/";
+const websiteBase = new URL(
+    process.env.ASHA_WEBSITE_BASE || "http://127.0.0.1:4180/website/",
+  ),
+  appBase = new URL(process.env.ASHA_TEST_BASE || "http://127.0.0.1:4180/"),
+  productionApp = new URL("https://neurobridge-asha-live.vercel.app/");
+
+function assertAppLink(href, module) {
+  const target = new URL(href, websiteBase);
+  assert.equal(
+    target.origin,
+    productionApp.origin,
+    "website links must open the production app",
+  );
+  assert.equal(
+    target.pathname,
+    "/",
+    "website links must use the app's root entry",
+  );
+  if (module) assert.equal(target.searchParams.get("module"), module);
+  return target;
+}
 const browser = await chromium.launch({
   headless: true,
   executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
@@ -17,7 +37,7 @@ page.on("pageerror", (e) => errors.push(e.message));
 page.on("request", (r) => requests.push(r.url()));
 await fs.mkdir("artifacts/summit", { recursive: true });
 try {
-  await page.goto(base, { waitUntil: "networkidle" });
+  await page.goto(websiteBase.href, { waitUntil: "networkidle" });
   await page
     .getByRole("heading", { level: 1, name: /A little support/ })
     .waitFor();
@@ -35,6 +55,29 @@ try {
     false,
     "public website must not start the app or camera models",
   );
+  const appLinks = await page
+    .locator('a[href^="https://neurobridge-asha-live.vercel.app/"]')
+    .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+  assert.ok(
+    appLinks.length >= 7,
+    "website entry and capability links must point to the production app",
+  );
+  appLinks.forEach((href) => assertAppLink(href));
+  const localAppLinks = await page.locator("a[href]").evaluateAll((links) =>
+    links
+      .map((link) => new URL(link.href))
+      .filter(
+        (target) =>
+          target.origin === location.origin &&
+          /^\/app(?:\/|\.html|$)/.test(target.pathname),
+      )
+      .map((target) => target.href),
+  );
+  assert.deepEqual(
+    localAppLinks,
+    [],
+    "the separate website must not send visitors to its own /app",
+  );
   await page.screenshot({
     path: "artifacts/summit/desktop-light.png",
     fullPage: true,
@@ -46,9 +89,15 @@ try {
       await page.locator("#capability-panel").getAttribute("aria-labelledby"),
       `tab-${id}`,
     );
-    assert.match(
+    assertAppLink(
       await page.locator("#capability-link").getAttribute("href"),
-      /^\/app\?module=/,
+      {
+        face: "facespeak",
+        hand: "fingerspeak",
+        speech: "senseassist",
+        vitals: "vitalsense",
+        posture: "posture",
+      }[id],
     );
   }
   await page.locator("#tab-face").focus();
@@ -122,7 +171,14 @@ try {
   await page.route("**/api/session**", (r) =>
     r.fulfill({ status: 503, json: { error: "Local UI fixture" } }),
   );
-  await page.getByRole("link", { name: "Try Asha" }).click();
+  const appEntry = assertAppLink(
+    await page.getByRole("link", { name: "Try Asha" }).getAttribute("href"),
+  );
+  // Assert the public destination above, then use the configured app origin so
+  // local QA never sends a browser to production or modifies production data.
+  await page.goto(
+    new URL(appEntry.pathname + appEntry.search + appEntry.hash, appBase).href,
+  );
   await page.locator("#exploreDemo").waitFor();
   await page.locator("#exploreDemo").click();
   try {
@@ -158,7 +214,7 @@ try {
       `module overflow ${module}`,
     );
   }
-  await page.goto(base + "?module=facespeak");
+  await page.goto(new URL("?module=facespeak", appBase).href);
   await page.locator("#details:not([hidden])").waitFor();
   await page
     .getByRole("heading", { name: "NeuroFace Sense", exact: true })
@@ -167,6 +223,7 @@ try {
   const report = {
     layouts,
     publicPageLoadsNoApp: true,
+    separateWebsiteLinksToProductionApp: true,
     keyboardTabs: true,
     allModules: true,
     legacyModuleLink: true,

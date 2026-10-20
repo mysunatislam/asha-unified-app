@@ -2,7 +2,7 @@
   "name": "NeuroBridge Asha",
   "short_name": "Asha",
   "id": "./",
-  "start_url": "./app",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f8fafc",

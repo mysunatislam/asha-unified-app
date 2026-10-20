@@ -1,20 +1,17 @@
 {
   "framework": null,
-  "functions": { "api/*.js": { "maxDuration": 60 } },
-  "crons": [{ "path": "/api/cleanup", "schedule": "17 3 * * *" }],
+  "functions": {
+    "api/*.js": {
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cleanup",
+      "schedule": "17 3 * * *"
+    }
+  ],
   "redirects": [
-    {
-      "source": "/",
-      "has": [{ "type": "query", "key": "module" }],
-      "destination": "/app",
-      "permanent": false
-    },
-    {
-      "source": "/",
-      "has": [{ "type": "query", "key": "role" }],
-      "destination": "/app",
-      "permanent": false
-    },
     {
       "source": "/caregiver/:path*",
       "destination": "/?role=caregiver",
@@ -42,17 +39,35 @@
     }
   ],
   "rewrites": [
-    { "source": "/app", "destination": "/app.html" },
-    { "source": "/app/", "destination": "/app.html" },
-    { "source": "/care", "destination": "/app.html" },
-    { "source": "/patient", "destination": "/app.html" }
+    {
+      "source": "/app",
+      "destination": "/app.html"
+    },
+    {
+      "source": "/app/",
+      "destination": "/app.html"
+    },
+    {
+      "source": "/care",
+      "destination": "/app.html"
+    },
+    {
+      "source": "/patient",
+      "destination": "/app.html"
+    }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "no-referrer" },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
         {
           "key": "Permissions-Policy",
           "value": "camera=(self), microphone=(self), geolocation=()"
@@ -61,7 +76,12 @@
     },
     {
       "source": "/api/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
     }
   ]
 }

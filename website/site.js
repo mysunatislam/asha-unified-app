@@ -1,7 +1,11 @@
 // The public website imports no camera, speech or AI engines.
 const query = new URLSearchParams(location.search);
 if (query.has("module") || query.has("role"))
-  location.replace("/app" + location.search + location.hash);
+  location.replace(
+    "https://neurobridge-asha-live.vercel.app/" +
+      location.search +
+      location.hash,
+  );
 const root = document.documentElement;
 let theme = "light";
 try {
@@ -106,7 +110,7 @@ function choose(tab) {
     document.getElementById(id).textContent = text;
   const link = document.getElementById("capability-link");
   link.textContent = `Explore ${name} ↗`;
-  link.href = `/app?module=${module}`;
+  link.href = `https://neurobridge-asha-live.vercel.app/?module=${module}`;
   document
     .getElementById("capability-panel")
     .setAttribute("aria-labelledby", tab.id);

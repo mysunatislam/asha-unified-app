@@ -50,8 +50,7 @@ http
         return;
       }
       let relative = decodeURIComponent(url.pathname);
-      if (relative === "/")
-        relative = url.searchParams.has("module") || url.searchParams.has("role") ? "/app.html" : "/index.html";
+      if (relative === "/") relative = "/index.html";
       if (["/app", "/app/", "/care", "/patient"].includes(relative))
         relative = "/app.html";
       const file = path.resolve(root, "." + relative);
