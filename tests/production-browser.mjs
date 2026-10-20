@@ -17,7 +17,7 @@ for (const page of [p, c]) page.on("pageerror", (e) => errors.push(e.message));
 let data;
 try {
   await p.goto(base);
-  await p.getByRole("button", { name: "Set up with a caregiver" }).click();
+  await p.locator("#beginSetup").click();
   await p.locator('[name="supportCategory"][value="stroke"]').check();
   await p.locator('[name="supportGoal"][value="speech"]').check();
   await p.screenshot({
