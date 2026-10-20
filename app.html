@@ -86,7 +86,12 @@
             />
           </svg>
         </button>
-        <button class="primary landing-try" data-landing-action="demo">
+        <button
+          class="primary landing-try"
+          data-landing-action="demo"
+          data-app-entry
+          disabled
+        >
           Try ASHA <span aria-hidden="true">→</span>
         </button>
         <button
@@ -126,9 +131,12 @@
           <h1 id="hero-title">Asha is here.</h1>
           <p>Choose a demo, or set up support with your caregiver.</p>
           <div class="actions">
-            <button id="exploreDemo" class="primary">Explore live demo →</button
+            <button id="exploreDemo" class="primary" data-app-entry disabled>
+              Explore live demo →</button
             ><button
               id="beginSetup"
+              data-app-entry
+              disabled
               class="secondary"
               aria-label="Set up with a caregiver"
             >
@@ -136,8 +144,16 @@
             </button>
           </div>
           <div class="actions">
-            <button id="openPatient" class="text-button">Patient access</button
-            ><button id="openCare" class="text-button">Caregiver access</button>
+            <button
+              id="openPatient"
+              class="text-button"
+              data-app-entry
+              disabled
+            >
+              Patient access</button
+            ><button id="openCare" class="text-button" data-app-entry disabled>
+              Caregiver access
+            </button>
           </div>
           <p class="small muted">Your camera stays off until you start it.</p>
           <a class="text-button" href="/">About Asha ↗</a>

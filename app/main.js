@@ -2474,4 +2474,9 @@ async function initialize() {
 function historyReplace() {
   window.history.replaceState(null, "", location.pathname + location.search);
 }
+// Navigation can paint the HTML before module dependencies finish loading.
+// Keep entry controls disabled until their handlers exist, so a quick first
+// tap cannot silently disappear on a slower mobile connection.
+document.querySelectorAll("[data-app-entry]").forEach((button) => { button.disabled = false; });
+document.documentElement.dataset.appReady = "true";
 initialize();

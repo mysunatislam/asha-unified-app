@@ -81,6 +81,9 @@ try {
     .getByRole("button", { name: "Acknowledge", exact: true })
     .first()
     .click();
+  // Simulate the patient returning to their own foreground device. Hidden
+  // browser tabs intentionally suspend polling and camera observations.
+  await p.bringToFront();
   await p.waitForFunction(
     () =>
       document

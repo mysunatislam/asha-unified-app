@@ -22,13 +22,11 @@ try {
     .getByRole("heading", { level: 1, name: /A little support/ })
     .waitFor();
   const resources = await page.evaluate(() =>
-    performance
-      .getEntriesByType("resource")
-      .map((r) => ({
-        url: r.name,
-        bytes: r.transferSize,
-        duration: Math.round(r.duration),
-      })),
+    performance.getEntriesByType("resource").map((r) => ({
+      url: r.name,
+      bytes: r.transferSize,
+      duration: Math.round(r.duration),
+    })),
   );
   assert.equal(
     requests.some((url) =>
@@ -127,7 +125,23 @@ try {
   await page.getByRole("link", { name: "Try Asha" }).click();
   await page.locator("#exploreDemo").waitFor();
   await page.locator("#exploreDemo").click();
-  await page.locator("#details:not([hidden])").waitFor();
+  try {
+    await page.locator("#details:not([hidden])").waitFor();
+  } catch (e) {
+    console.log(
+      await page.evaluate(() => ({
+        url: location.href,
+        ready: document.readyState,
+        handler: !!document.getElementById("exploreDemo")?.onclick,
+        button: document.getElementById("exploreDemo")?.textContent,
+        toast: document.getElementById("toast")?.textContent,
+        views: [...document.querySelectorAll(".view")]
+          .filter((e) => !e.hidden)
+          .map((e) => e.id),
+      })),
+    );
+    throw e;
+  }
   for (const module of [
     "facespeak",
     "fingerspeak",
