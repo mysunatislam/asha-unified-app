@@ -13,9 +13,14 @@ import {
 } from "../server/maira-provider.js";
 import { createAshaOrchestrator } from "../server/asha-orchestrator.js";
 
-const orchestrator = createAshaOrchestrator({
-  provider: createMairaProvider(),
-});
+const provider = createMairaProvider();
+const orchestrator = createAshaOrchestrator({ provider });
+const quiet = (promise) => {
+  // Prevent an unhandled rejection if another step fails first; callers still
+  // await the original promise and receive its error.
+  promise.catch(() => {});
+  return promise;
+};
 
 export default async function handler(req, res) {
   if (!begin(req, res)) return;
@@ -24,6 +29,14 @@ export default async function handler(req, res) {
   const started = Date.now();
   try {
     const b = body(req);
+    const wellFormed = /^[a-f0-9]{24}$/.test(b.patientId || "");
+    const daily = wellFormed
+      ? path(b.patientId, "usage/" + new Date().toISOString().slice(0, 10))
+      : null;
+    // Independent setup runs together instead of back-to-back: Maira profile
+    // discovery (cached per instance), authentication and the usage read.
+    if (wellFormed) provider.warm();
+    const usageRead = daily ? quiet(store.read(daily)) : null;
     const auth = await authenticate(req, b.patientId);
     if (!auth) return authFail(res);
     if (b.consent !== true)
@@ -37,11 +50,7 @@ export default async function handler(req, res) {
     const text = clean(b.text, 600);
     if (!text)
       return res.status(400).json({ error: "Say or type something first." });
-    const daily = path(
-      b.patientId,
-      "usage/" + new Date().toISOString().slice(0, 10),
-    );
-    const usage = (await store.read(daily)) || { count: 0, last: 0 };
+    const usage = (await usageRead) || { count: 0, last: 0 };
     if (usage.count >= 160 || Date.now() - usage.last < 1500)
       return res
         .status(429)

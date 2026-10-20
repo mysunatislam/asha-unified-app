@@ -1,11 +1,11 @@
 import {
   poseFeatures,
-  pulseEstimate,
   RestTracker,
   SustainedCue,
 } from "./signals.js";
 import { HandTracks } from "./hand-tracks.js";
 import { FaceAnalysis } from "./face-analysis.js";
+import { VitalSense, vitalROIs } from "./vitalsense.js";
 export class Perception extends EventTarget {
   constructor(video, canvas) {
     super();
@@ -18,12 +18,17 @@ export class Perception extends EventTarget {
     this.rest = new RestTracker();
     this.postureCue = new SustainedCue();
     this.analysis = new FaceAnalysis();
-    this.rgb = [];
-    this.pulse = { bpm: null, reason: "Collecting signal" };
+    this.vitals = new VitalSense();
+    this.pulse = this.vitals.value;
     this.snapshot = {};
     this.enabled = [];
     this.handStates = {};
     this.yoloEnabled = false;
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        this.invalidateVitals("Monitoring paused while this page is hidden");
+      }
+    });
   }
   emit(type, detail) {
     this.dispatchEvent(new CustomEvent(type, { detail }));
@@ -34,6 +39,22 @@ export class Perception extends EventTarget {
   }
   resetFaceReference() {
     this.analysis.reset();
+  }
+  resetVitalsBaseline() {
+    this.pulse = this.vitals.resetBaseline();
+    this.snapshot.pulse = this.pulse;
+    this.emit("vitals", this.pulse);
+  }
+  resetVitalsSession() {
+    this.vitals.reset();
+    this.pulse = this.vitals.value;
+    this.snapshot.pulse = this.pulse;
+    this.emit("vitals", this.pulse);
+  }
+  invalidateVitals(reason = "Monitoring paused") {
+    this.pulse = this.vitals.invalidate(reason);
+    this.snapshot.pulse = this.pulse;
+    this.emit("vitals", this.pulse);
   }
   setActiveModule(name) {
     this.activeModule = name;
@@ -179,6 +200,22 @@ export class Perception extends EventTarget {
   async loop() {
     if (!this.running) return;
     const t = performance.now();
+    // Color sampling follows actual video frames, independent of slower face/hand
+    // inference. Reuse the latest fresh landmarks and the existing camera only.
+    if (!document.hidden && this.video.readyState >= 2 &&
+        this.video.currentTime !== this.lastPulseVideoTime && t - (this.lastPulseFrame || 0) >= 25) {
+      this.lastPulseVideoTime = this.video.currentTime;
+      this.lastPulseFrame = t;
+      this.samplePulse(this.faceResult, this.vitalsFaceFeatures, t);
+      this.cycles.pulse++;
+      if (t - (this.lastVitalsEmit || 0) >= 200) {
+        this.lastVitalsEmit = t;
+        this.emit("vitals", this.pulse);
+      }
+    }
+    if (this.lastPulseFrame && t - this.lastPulseFrame > 600 && (this.pulse.bpm != null || this.vitals.rows.length)) {
+      this.invalidateVitals("Camera frames stopped; waiting for a fresh signal");
+    }
     if (
       this.handWorker &&
       !document.hidden &&
@@ -265,7 +302,20 @@ export class Perception extends EventTarget {
     const f = this.extractor.extract(d.face, this.video, d.t),
       // The engine classifies intent; only the parent confirmation gate may act.
       r = this.engine.process({ ...f, commandsEnabled: true });
+    const currentLandmarks = d.face.faceLandmarks?.[0];
+    const previousLandmarks = this.faceResult?.faceLandmarks?.[0];
+    const elapsed = d.t - (this.faceResultAt ?? d.t);
+    if (currentLandmarks && previousLandmarks && elapsed > 0) {
+      let displacement = 0, count = 0;
+      for (let i = 0; i < Math.min(currentLandmarks.length, previousLandmarks.length); i += 8) {
+        displacement += Math.hypot(currentLandmarks[i].x - previousLandmarks[i].x, currentLandmarks[i].y - previousLandmarks[i].y);
+        count++;
+      }
+      this.vitalsMotion = .7 * (this.vitalsMotion || 0) + .3 * displacement / Math.max(1, count) * 1000 / elapsed;
+    } else this.vitalsMotion = 0;
     this.faceResult = d.face;
+    this.faceResultAt = d.t;
+    this.vitalsFaceFeatures = f;
     const analysis = this.analysis.update(
       d.face.faceLandmarks?.[0],
       f,
@@ -299,8 +349,6 @@ export class Perception extends EventTarget {
     if (this.postureCue.update(this.posture?.sideways, !!poseValid, d.t))
       this.emit("cue", "posture");
     if (analysis.lip?.fired) this.emit("cue", "face_change");
-    this.samplePulse(d.face, f, d.t);
-    this.cycles.pulse++;
     this.snapshot = {
       cycles: { ...this.cycles },
       analysis,
@@ -349,14 +397,10 @@ export class Perception extends EventTarget {
     this.snapshot.cycles = { ...this.cycles };
   }
   samplePulse(result, f, t) {
-    const lm = result.faceLandmarks?.[0];
-    if (!lm || !f.facePresent || f.faceQuality < 0.65) {
-      this.rgb = [];
-      this.pulse = {
-        bpm: null,
-        quality: 0,
-        reason: "Face not reliably visible",
-      };
+    const lm = result?.faceLandmarks?.[0];
+    if (!lm || !f?.facePresent || f.faceQuality < 0.65 || t - (this.faceResultAt || 0) > 600) {
+      this.pulse = this.vitals.invalidate("Position your face in frame, centered and well-lit", t);
+      this.snapshot.pulse = this.pulse;
       return;
     }
     this.roi ??= Object.assign(document.createElement("canvas"), {
@@ -366,32 +410,27 @@ export class Perception extends EventTarget {
     const c = this.roi.getContext("2d", { willReadFrequently: true });
     const W = this.video.videoWidth,
       H = this.video.videoHeight;
-    const x = (lm[70].x + lm[300].x) / 2,
-      y = (lm[10].y + lm[151].y) / 2,
-      w = Math.abs(lm[300].x - lm[70].x) * 0.48,
-      h = Math.abs(lm[151].y - lm[10].y) * 0.7;
-    if (w < 0.01 || h < 0.005) return;
-    c.drawImage(
-      this.video,
-      (x - w / 2) * W,
-      (y - h / 2) * H,
-      w * W,
-      h * H,
-      0,
-      0,
-      16,
-      16,
-    );
-    const px = c.getImageData(0, 0, 16, 16).data,
-      rgb = [0, 0, 0];
-    for (let i = 0; i < px.length; i += 4)
-      for (let k = 0; k < 3; k++) rgb[k] += px[i + k] / 256;
-    this.rgb.push({ t, rgb, motion: (f.poseSpeed || 0) / 1000 });
-    this.rgb = this.rgb.filter((x) => x.t > t - 22000);
-    if (t - (this.lastPulse || 0) > 1500) {
-      this.lastPulse = t;
-      this.pulse = pulseEstimate(this.rgb);
+    const rois = vitalROIs(lm, W, H), valid = [], boxes = [];
+    for (const rect of rois) {
+      c.drawImage(this.video, rect.x, rect.y, rect.w, rect.h, 0, 0, 16, 16);
+      const px = c.getImageData(0, 0, 16, 16).data, rgb = [0, 0, 0];
+      for (let i = 0; i < px.length; i += 4)
+        for (let k = 0; k < 3; k++) rgb[k] += px[i + k] / (256 * 255);
+      const brightness = (rgb[0] + rgb[1] + rgb[2]) / 3;
+      const accepted = brightness > .08 && brightness < .95;
+      boxes.push({ x: rect.x / W, y: rect.y / H, w: rect.w / W, h: rect.h / H, valid: accepted });
+      if (accepted) valid.push(rgb);
     }
+    if (!valid.length) this.pulse = this.vitals.invalidate("Skin regions are too dark, hidden, or overexposed", t);
+    else this.pulse = this.vitals.add({
+      t,
+      rgb: [0, 1, 2].map((k) => valid.reduce((sum, rgb) => sum + rgb[k], 0) / valid.length),
+      headY: lm.reduce((sum, p) => sum + p.y, 0) / lm.length,
+      motion: this.vitalsMotion || 0,
+      roiCount: valid.length,
+    });
+    this.pulse = { ...this.pulse, rois: boxes };
+    this.snapshot.pulse = this.pulse;
   }
   draw() {
     if (!this.canvas.offsetParent) return;
@@ -399,6 +438,13 @@ export class Perception extends EventTarget {
       W = (this.canvas.width = this.video.videoWidth || 640),
       H = (this.canvas.height = this.video.videoHeight || 480);
     c.clearRect(0, 0, W, H);
+    if (this.activeModule === "vitalsense") {
+      c.lineWidth = 2;
+      for (const r of this.pulse.rois || []) {
+        c.strokeStyle = r.valid ? "#21e6c1" : "#ffb454";
+        c.strokeRect(r.x * W, r.y * H, r.w * W, r.h * H);
+      }
+    }
     const lines = (lm, edges, color) => {
       if (!lm) return;
       c.strokeStyle = color;
@@ -550,7 +596,10 @@ export class Perception extends EventTarget {
     this.busy = false;
     this.rest.reset();
     this.analysis.reset();
-    this.rgb = [];
+    this.invalidateVitals("Monitoring paused");
+    this.lastPulseVideoTime = null;
+    this.lastPulseFrame = 0;
+    this.faceResultAt = 0;
     this.emit("status", "Monitoring paused");
   }
 }

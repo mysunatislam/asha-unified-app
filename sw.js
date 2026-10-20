@@ -39,8 +39,8 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(d.title || "Asha · new request", {
       body: d.body || "Open your caregiver dashboard.",
       tag: d.tag,
-      icon: "./icons/asha-192.png",
-      badge: "./app/icon.svg",
+      icon: "./assets/brand/asha-icon-192.png",
+      badge: "./assets/brand/asha-icon-192.png",
       data: { url: "./?role=caregiver" },
     }),
   );

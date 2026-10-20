@@ -1,0 +1,46 @@
+/* Shared healthcare-blue refinements for standalone ASHA modules. Loaded after local styles. */
+:root {
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-accent: #60a5fa;
+  --color-background: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #eff6ff;
+  --color-text: #172b4d;
+  --color-text-muted: #64748b;
+  --color-border: #dbe5f0;
+  --color-heading: #15345b;
+}
+
+/* SenseAssist */
+body:has(.intro) { color: #f1f5f9; background: radial-gradient(circle at 75% -15%, #2563eb55 0, transparent 42%), #0b1424; }
+body:has(.intro) .topbar { border-color: #293b54; background: #0b1424df; }
+body:has(.intro) .brand strong, body:has(.intro) .eyebrow { color: #60a5fa; }
+body:has(.intro) .tab.active, body:has(.intro) button.primary { background: #2563eb; border-color: #60a5fa; color: #fff; }
+body:has(.intro) button:focus-visible, body:has(.intro) input:focus-visible, body:has(.intro) textarea:focus-visible { outline-color: #60a5fa; }
+body:has(.intro) .consent input { accent-color: #2563eb; }
+
+/* NeuroFace / FaceSpeak: blue interface accents, with status colors left semantic. */
+html:not([data-theme="light"]) body:has(.bg-orbs) { background: radial-gradient(1200px 600px at 15% -5%, #15345b 0%, transparent 60%), radial-gradient(1000px 500px at 90% 0%, #111e32 0%, transparent 55%), #0b1424; }
+body:has(.bg-orbs) .o1, body:has(.bg-orbs) .o2, body:has(.bg-orbs) .o3 { background: #2563eb33; }
+body:has(.bg-orbs) .logo, body:has(.bg-orbs) .btn.primary, body:has(.bg-orbs) .face-tab.active { background: #2563eb; color: #fff; box-shadow: none; }
+body:has(.bg-orbs) .brand h1 span, body:has(.bg-orbs) #fpsBadge, body:has(.bg-orbs) .cam-hud div, body:has(.bg-orbs) summary { color: #60a5fa; }
+body:has(.bg-orbs) .btn:hover { box-shadow: 0 8px 22px #2563eb33; }
+html[data-theme="light"] body:has(.bg-orbs) { background: radial-gradient(1100px 570px at 15% -5%, #dbeafe 0%, transparent 60%), #f8fafc; }
+html[data-theme="light"] body:has(.bg-orbs) .btn.primary, html[data-theme="light"] body:has(.bg-orbs) .face-tab.active { background: #2563eb; color: #fff; }
+
+/* FingerSpeak */
+body:has(.gesture-row) { --bg: #0b1424; --surface: #17263d; --surface-2: #111e32; --line: #293b54; --teal: #60a5fa; --teal-dim: #1d4ed8; --text: #f1f5f9; --text-dim: #a8b8cc; }
+:root[data-theme="light"] body:has(.gesture-row) { --bg: #f8fafc; --surface: #fff; --surface-2: #eff6ff; --line: #dbe5f0; --teal: #2563eb; --teal-dim: #dbeafe; --text: #172b4d; --text-dim: #64748b; }
+body:has(.gesture-row) .btn.primary { color: #fff; background: var(--teal); border-color: var(--teal); }
+body:has(.gesture-row) .btn.primary:hover { background: #1d4ed8; }
+
+/* VitalSense supports both color modes while retaining red, amber, and green clinical states. */
+body:has(.dashboard) { --void: #0b1424; --surface: #17263d; --surface-2: #111e32; --line: #293b54; --bioglow: #60a5fa; --bioglow-dim: #1d4ed8; --drift: #93c5fd; --text: #f1f5f9; --text-dim: #a8b8cc; }
+body.light:has(.dashboard) { --void: #f8fafc; --surface: #fff; --surface-2: #eff6ff; --line: #dbe5f0; --bioglow: #2563eb; --bioglow-dim: #dbeafe; --drift: #1d4ed8; --text: #172b4d; --text-dim: #64748b; }
+body:has(.dashboard) .brand-mark, body:has(.dashboard) .btn.primary { background: #2563eb; color: #fff; box-shadow: none; }
+body:has(.dashboard) .btn:hover { border-color: #60a5fa; color: #60a5fa; box-shadow: 0 0 14px -4px #2563eb66; }
+
+@media (prefers-reduced-motion: reduce) {
+  body:has(.bg-orbs) *, body:has(.dashboard) * { animation-duration: .01ms !important; }
+}

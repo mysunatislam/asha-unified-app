@@ -1,6 +1,8 @@
 import { Perception } from "./perception.js";
 import { GuidedCalibration } from "./calibration.js";
 import { faceStudio, paintFaceStudio } from "./face-studio.js";
+import { vitalsStudio, paintVitals, exportVitals } from "./vitals-studio.js";
+import { icon, iconButton } from "./icons.js";
 import { RequestGate, recommendations, clamp } from "./signals.js";
 import { CompanionGuide, responsePlan, confirmationMatches } from "./companion-guide.js";
 import { BlinkIntent, RAPID_BLINK, CONFIRM_BLINK } from "./blink-intent.js";
@@ -49,7 +51,7 @@ const names = {
 const moduleGuidance = {
   facespeak: "FaceSpeak shows your live eyes, eyebrows, smile, lips and head movement. A caregiver can calibrate a head, smile or deliberate blink response here. A practiced triple blink asks for help; a separate deliberate blink confirms after my question.",
   fingerspeak: "FingerSpeak can preview one or two hands. To speak personalized phrases, record and test your own gestures in the FingerSpeak studio.",
-  vitalsense: "VitalSense shows an experimental camera pulse trend. It is not a medical vital reading and never sends an emergency request.",
+  vitalsense: "This is VitalSense. Face the shared camera in steady light and keep still. I will show pulse and breathing estimates when the signal is ready. You can calibrate a resting reference and explore the waveform, trend and reading log below.",
   senseassist: "SenseAssist can help clarify speech that was hard to understand. Review what was heard before Asha suggests a possible meaning.",
   posture: "Body posture shows camera-based position and movement. A sustained change can lead to a gentle question, not an automatic diagnosis or caregiver request.",
 };
@@ -204,7 +206,10 @@ function toast(t) {
 }
 function theme() {
   document.documentElement.dataset.theme = settings.theme;
-  $("themeButton").textContent = settings.theme === "dark" ? "☀" : "☾";
+  $("themeButton").innerHTML = icon(settings.theme === "dark" ? "sun" : "moon");
+  $("themeButton").setAttribute("aria-pressed", String(settings.theme === "dark"));
+  $("themeButton").setAttribute("aria-label", `Switch to ${settings.theme === "dark" ? "light" : "dark"} theme`);
+  $("themeButton").title = `Switch to ${settings.theme === "dark" ? "light" : "dark"} theme`;
   save("settings", settings);
   $("fingerStudio")?.contentWindow?.ashaSetTheme?.(settings.theme);
 }
@@ -225,6 +230,7 @@ function show(id) {
   if (id === "details") cameraPanel.insertBefore(viewport, $("cameraStatus"));
   else captureDock.append(viewport);
   for (const v of document.querySelectorAll(".view")) v.hidden = v.id !== id;
+  document.body.classList.toggle("app-active", id !== "welcome");
   $("bottomNav").hidden = ["welcome", "setup"].includes(id);
   document
     .querySelectorAll("[data-view]")
@@ -243,7 +249,7 @@ function show(id) {
   if (previousView !== id) {
     guide.clear();
     cancelRequest();
-    $("chatPanel").hidden = true;
+    closeChat();
   }
   if (profile && settings.proactive && previousView !== id && ["patient", "details", "settings"].includes(id)) {
     const description = id === "patient"
@@ -263,7 +269,8 @@ $("themeButton").onclick = () => {
   settings.theme = settings.theme === "dark" ? "light" : "dark";
   theme();
 };
-$("settingsButton").onclick = () => show("settings");
+$("settingsButton")?.addEventListener("click", () => show("settings"));
+$("landingMenuToggle")?.addEventListener("click", () => show("settings"));
 $("settingsBack").onclick = () =>
   show(previousView === "settings" ? "patient" : previousView);
 $("beginSetup").onclick = $("addPatient").onclick = () => startSetup();
@@ -272,6 +279,24 @@ $("openPatient").onclick = () =>
   patient ? openPatient() : openLink("patient");
 $("openCare").onclick = () => show("caregiver");
 $("detailsButton").onclick = $("changeMode").onclick = () => show("details");
+document.querySelectorAll("[data-landing-action]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const action = button.dataset.landingAction;
+    if (action === "demo") startDemo("facespeak");
+    else if (action === "setup") startSetup();
+    else if (action === "patient") patient ? openPatient() : openLink("patient");
+    else if (action === "caregiver") show("caregiver");
+  });
+});
+document.querySelectorAll("[data-landing-section]").forEach((link) => {
+  link.addEventListener("click", (event) => {
+    event.preventDefault();
+    show("welcome");
+    requestAnimationFrame(() => document.getElementById(link.dataset.landingSection)
+      ?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block:"start" }));
+  });
+});
+if ($("landingYear")) $("landingYear").textContent = new Date().getFullYear();
 function credential() {
   return view === "caregiver"
     ? carePatients.find((x) => x.patientId === careId)
@@ -947,6 +972,7 @@ function monitorUI(on) {
     $("cameraPlaceholder").textContent = "Monitoring paused";
     $("liveSummary").textContent =
       "All camera sensing paused. SenseAssist and Asha remain available.";
+    paintVitals(perception.pulse, false);
   }
 }
 async function startMonitor() {
@@ -994,6 +1020,9 @@ $("pauseMonitoring").onclick = () => {
 perception.addEventListener("status", (e) => {
   $("monitorStatus").textContent = e.detail;
   $("cameraStatus").textContent = e.detail;
+});
+perception.addEventListener("vitals", ({ detail: pulse }) => {
+  paintVitals(pulse, perception.running && !document.hidden);
 });
 function propose(kind, source = "touch", text = needs[kind]) {
   if (!profile) {
@@ -1335,21 +1364,25 @@ async function pollPatient() {
   try {
     const d = await call("session", { cred: pollCredential });
     if (patient?.patientId !== pollCredential.patientId) return;
-    const changed =
-      profile &&
-      JSON.stringify(profile.assessment) !==
-        JSON.stringify(d.profile.assessment);
+    const assessmentKey = (value) => JSON.stringify(
+      Object.entries(value || {}).sort(([a], [b]) => a.localeCompare(b)),
+    );
+    const changed = profile &&
+      assessmentKey(profile.assessment) !== assessmentKey(d.profile.assessment);
     profile = d.profile;
     if (changed) {
-      module =
+      const suggested =
         profile.recommendation?.primary === "companion"
           ? "facespeak"
           : profile.recommendation?.primary || "facespeak";
+      // Keep the module someone is actively exploring open; a new assessment
+      // recommends a starting point without interrupting their current screen.
+      if (view !== "details") module = suggested;
       $("modeBadge").textContent = names[module];
       if (view === "details") renderModule();
       say(
         "Your caregiver updated your assessment. I suggest " +
-          names[module] +
+          names[suggested] +
           ". You can still choose any interface.",
       );
     }
@@ -1500,6 +1533,7 @@ setInterval(() => {
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     speechCapture?.stop("page-hidden");
+    perception.invalidateVitals("Camera signal paused while the page is backgrounded");
     perception.rest.reset();
     $("monitorStatus").textContent =
       "Monitoring paused while this page is backgrounded.";
@@ -1603,11 +1637,24 @@ function presentAshaActions(result, message, context) {
   if (container.childElementCount) (details || message).after(container);
   return opened;
 }
-function openChat() {
+let chatOpener = null;
+function openChat(opener = document.activeElement) {
+  chatOpener = opener instanceof HTMLElement ? opener : null;
   $("chatPanel").hidden = false;
   $("chatInput").focus();
 }
-$("closeChat").onclick = () => ($("chatPanel").hidden = true);
+function closeChat() {
+  $("chatPanel").hidden = true;
+  chatOpener?.focus?.();
+  chatOpener = null;
+}
+$("closeChat").onclick = closeChat;
+$("chatPanel").addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeChat();
+  }
+});
 function immediateAppGuide(text) {
   const greeting = instantGreeting(text, {
     language: settings.language,
@@ -1779,13 +1826,13 @@ handle.onpointermove = (e) => {
 };
 handle.onpointerup = () => {
   if (drag && !drag.moved)
-    $("chatPanel").hidden ? openChat() : ($("chatPanel").hidden = true);
+    $("chatPanel").hidden ? openChat(handle) : closeChat();
   drag = null;
 };
 handle.onkeydown = (e) => {
   if (["Enter", " "].includes(e.key)) {
     e.preventDefault();
-    openChat();
+    openChat(handle);
   }
 };
 function renderSettings() {
@@ -1979,31 +2026,47 @@ function renderModule() {
   else if (view === "details")
     cameraPanel.insertBefore(viewport, $("cameraStatus"));
   perception.setActiveModule(module);
-  document
-    .querySelectorAll("[data-module]")
-    .forEach((b) => b.classList.toggle("active", b.dataset.module === module));
+  document.querySelectorAll("[data-module]").forEach((b) => {
+    const active = b.dataset.module === module;
+    b.classList.toggle("active", active);
+    if (b.matches("[role=tab]"))
+      b.setAttribute("aria-selected", String(active));
+  });
   let html = "";
   if (module === "facespeak") html = faceStudio();
   if (module === "fingerspeak") {
-    html = `<div class="card"><span class="eyebrow">BOTH HANDS, YOUR CHOICE</span><h2>FingerSpeak</h2><p class="muted">Both hands are tracked independently. Anyone can explore this interface, regardless of assessment. Familiar poses are detected automatically; a personal mapping needs three distinct holds.</p><div id="handReadings"><div class="empty">Bring one or both hands into view.</div></div><label class="field">Gesture<select id="handPose"><option>Open palm</option><option>Index extended</option><option>Two fingers extended</option><option>Three fingers extended</option><option>Closed fingers</option></select></label><label class="field">Meaning<select id="handMeaning"><option value="help">Caregiver</option><option value="water">Water</option><option value="toilet">Toilet</option><option value="food">Food</option><option value="comfort">Comfort</option></select></label><button id="trainHand" class="primary">Learn this gesture</button><p id="handTrainStatus" class="small muted">Hold for a moment, relax, and repeat three times. Then repeat a mapped gesture to confirm a proposed request.</p><div id="savedHands"></div></div>`;
+    html = `<section class="module-hero"><div><span class="eyebrow">FINGERSPEAK</span><h2>${icon("hand", { size: 28 })}Train your gestures. Communicate your way.</h2><p>Build a personal gesture vocabulary in the studio below. A trained gesture proposes a message; the patient still confirms before a caregiver request is sent.</p></div><span class="module-safety-note">Camera processing stays in this browser</span></section><section class="card quick-mapping-card"><div class="section-heading"><div><span class="eyebrow">QUICK MAPPING</span><h3>Familiar pose preview</h3></div><span class="small muted">Optional</span></div><p class="muted">Both hands are tracked independently. These familiar poses are a quick preview; use the full studio for personal training, testing, temporal modelling and evaluation.</p><div id="handReadings"><div class="empty">Bring one or both hands into view.</div></div><div class="module-form-grid"><label class="field">Gesture<select id="handPose"><option>Open palm</option><option>Index extended</option><option>Two fingers extended</option><option>Three fingers extended</option><option>Closed fingers</option></select></label><label class="field">Meaning<select id="handMeaning"><option value="help">Caregiver</option><option value="water">Water</option><option value="toilet">Toilet</option><option value="food">Food</option><option value="comfort">Comfort</option></select></label></div><div class="actions"><button id="trainHand" class="primary">${iconButton("hand", "Learn this gesture")}</button></div><p id="handTrainStatus" class="small muted" role="status">Hold for a moment, relax, and repeat three times. Then repeat a mapped gesture to confirm a proposed request.</p><div id="savedHands" class="saved-mappings"></div></section>`;
   }
   if (module === "vitalsense") {
-    html = `<div class="card"><span class="eyebrow">LOCAL CAMERA SIGNAL</span><h2>VitalSense</h2><p class="muted">Sit comfortably in steady light. A small forehead region supplies a color signal; motion and weak signals are rejected.</p><div class="metrics">${metric("Camera pulse estimate", "pulseValue")}${metric("Signal quality", "pulseQuality")}${metric("Window", "pulseWindow", "20 sec")}</div>${chart("pulseChart", "COLOR PULSE SIGNAL")}<p id="pulseReason" class="muted">Start the camera and allow 20 seconds.</p><p class="small muted">Experimental pulse trend, not a medical vital measurement. This camera cannot measure blood pressure, oxygen saturation or temperature. No emergency action uses this estimate.</p></div>`;
+    html = vitalsStudio();
   }
   if (module === "posture") {
-    html = `<div class="card"><span class="eyebrow">SHARED ACROSS EVERY INTERFACE</span><h2>Body posture</h2><p class="muted">Position the camera so shoulders and, if possible, hips are visible. Lightweight body tracking stays active in every module. A sustained change can prompt a gentle check-in.</p><div class="metrics">${metric("Observed position", "poseLabel")}${metric("Shoulder tilt", "poseTilt")}${metric("Body movement", "poseMotion")}</div>${chart("poseChart", "POSTURE TREND")}<button id="enableYolo" class="secondary">${perception.yoloEnabled ? "Pause" : "Enable"} YOLO cross-check</button><p id="yoloStatus" class="small muted">YOLO26 pose runs in its own worker. It is an optional, heavier second model; lightweight pose remains active.</p><p class="small muted">Rest-to-awake check-in requires one minute of valid closed-eye, still-body observations followed by eyes opening and body movement. It does not identify sleep stages or diagnose falls or pain.</p></div>`;
+        html = `<section class="module-hero"><div><span class="eyebrow">POSTURE</span><h2>${icon("accessibility", { size: 28 })}Body posture</h2><p>Observe sustained posture changes and gentle check-in signals. Keep shoulders and, if possible, hips visible to the shared camera.</p></div><span class="module-safety-note">Observation only · no fall, pain, or sleep diagnosis</span></section><section class="posture-workspace"><div class="card posture-reading-card"><div class="section-heading"><div><span class="eyebrow">CURRENT OBSERVATION</span><h3>Posture status</h3></div><span class="status-badge">Shared camera</span></div><div class="metrics">${metric("Observed position", "poseLabel")}${metric("Shoulder tilt", "poseTilt")}${metric("Body movement", "poseMotion")}</div>${chart("poseChart", "POSTURE TREND")}<p class="small muted">A sustained change can prompt a gentle check-in. This screen does not create historical records or clinical conclusions.</p></div><aside class="card posture-settings"><span class="eyebrow">OPTIONAL CROSS-CHECK</span><h3>Additional pose model</h3><p class="muted">The lightweight pose model remains active. The optional second model uses more device resources.</p><button id="enableYolo" class="secondary">${iconButton("scan", `${perception.yoloEnabled ? "Pause" : "Enable"} YOLO cross-check`)}</button><p id="yoloStatus" class="small muted" role="status">YOLO26 pose runs in its own worker. It is an optional, heavier second model; lightweight pose remains active.</p><p class="small muted">Rest-to-awake check-in requires one minute of valid closed-eye, still-body observations followed by eyes opening and body movement. It does not identify sleep stages or diagnose falls or pain.</p></aside></section>`;
   }
   if (module === "senseassist") {
-    html = `<div class="card"><span class="eyebrow">YOUR WORDS, MORE CLEARLY</span><h2>SenseAssist</h2><p class="muted">Practice a phrase or clarify something you want to say. Review the heard words, then Asha suggests the closest intended meaning.</p><label class="field">Practice phrase / context (optional)<input id="speechTarget" maxlength="150" placeholder="e.g. red rabbit green"></label><label class="field">Listening language<select id="speechLanguage"><option value="en-US">English</option><option value="bn-BD">বাংলা · Bangla</option></select></label><p class="small muted">Choose the language you are speaking. For mixed speech, choose the main language and edit any missed words before asking Asha.</p><div class="actions"><button id="listenSpeech" class="primary">Start listening</button><button id="stopSpeech" class="secondary" disabled>Stop</button><button id="hearTarget" class="secondary">Hear phrase</button></div><p id="speechStatus" class="small muted">Microphone speech recognition depends on your browser and may use its online service. Only the reviewed words are sent to Asha.</p><label class="field">What was heard · editable<textarea id="heardSpeech" maxlength="600" placeholder="For example: wed wabbit wghreen"></textarea></label><button id="interpretSpeech" class="primary">Make my meaning clearer →</button><div id="speechResult"></div><button id="practiceAdvice" class="text-button">Ask Asha for a practice cue →</button></div>`;
+        html = `<section class="module-hero"><div><span class="eyebrow">SENSEASSIST</span><h2>${icon("mic", { size: 28 })}SenseAssist</h2><p>Turn spoken words into clearer communication. Listen, review the editable transcript, then ask Asha for a suggested wording.</p></div><span class="module-safety-note">Review before confirming or sending</span></section><section class="sense-workspace"><div class="card listening-card"><div class="section-heading"><div><span class="eyebrow">LISTENING</span><h3>Capture your words</h3></div><span class="status-badge">Up to 90 seconds</span></div><div class="module-form-grid"><label class="field">Practice phrase / context <span class="field-optional">(optional)</span><input id="speechTarget" maxlength="150" placeholder="e.g. red rabbit green"></label><label class="field">Listening language<select id="speechLanguage"><option value="en-US">English</option><option value="bn-BD">বাংলা · Bangla</option></select></label></div><p class="small muted">Choose the main language you are speaking. For mixed speech, edit any missed words before asking Asha.</p><div class="listening-actions"><button id="listenSpeech" class="primary">${iconButton("mic", "Start listening")}</button><button id="stopSpeech" class="secondary" disabled>${iconButton("square", "Stop listening")}</button><button id="hearTarget" class="secondary">${iconButton("volume", "Hear practice phrase")}</button></div><p id="speechStatus" class="observation-status" role="status">Microphone speech recognition depends on your browser and may use its online service. Only reviewed words are sent to Asha.</p></div><div class="card transcript-card"><span class="eyebrow">REVIEW</span><h3>What was heard</h3><label class="field">Editable transcript<textarea id="heardSpeech" maxlength="600" placeholder="For example: wed wabbit wghreen"></textarea></label><div class="clarify-actions"><button id="interpretSpeech" class="primary">${iconButton("languages", "Suggest clearer wording")}</button><button id="practiceAdvice" class="text-button">Ask Asha for a practice cue →</button></div><div id="speechResult" class="speech-suggestion" aria-live="polite"></div></div></section>`;
   }
   if (isFinger) {
     ensureFingerStudio();
-    html =
-      '<details class="card"><summary>Quick familiar-pose mappings (optional)</summary>' +
-      html +
-      "</details>";
+    html = '<div class="finger-module-intro">' + html + "</div>";
   }
   $("moduleContent").innerHTML = html;
+  if (module === "vitalsense") {
+    paintVitals(perception.pulse, perception.running);
+    $("vsCalibrate").onclick = async () => {
+      if (!perception.running) await startMonitor();
+      if (!perception.running) return;
+      perception.resetVitalsBaseline();
+      paintVitals(perception.pulse, true);
+      say("Let's learn your resting pulse reference. Keep your face still in steady light for thirty seconds of usable readings.");
+    };
+    $("vsReset").onclick = () => {
+      perception.resetVitalsSession();
+      paintVitals(perception.pulse, perception.running);
+      toast("VitalSense session reset. Collecting a new signal.");
+    };
+    $("vsExport").onclick = () => exportVitals(perception.pulse);
+  }
   if ($("nf-calibrate")) {
     $("nf-calibrate").onclick = $("nf-calibrateRules").onclick = () =>
       $("calibrateButton").click();
@@ -2096,6 +2159,20 @@ document.querySelectorAll("[data-module]").forEach(
       heartbeat();
     }),
 );
+$('moduleTabs').addEventListener('keydown', (event) => {
+  if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
+  const tabs = [...event.currentTarget.querySelectorAll('button[data-module]')];
+  const current = tabs.indexOf(document.activeElement);
+  if (current < 0) return;
+  event.preventDefault();
+  const next = event.key === 'Home'
+    ? 0
+    : event.key === 'End'
+      ? tabs.length - 1
+      : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+  tabs[next].focus();
+  tabs[next].click();
+});
 function paint(s) {
   if (!s.raw || !perception.running) return;
   $("fpsBadge").textContent = s.latency + " ms";
@@ -2154,9 +2231,7 @@ function paint(s) {
     "smileValue",
     s.face?.smile ? Math.round(s.face.smile.smileIntensity * 100) + "%" : "—",
   );
-  text("pulseValue", s.pulse?.bpm ? s.pulse.bpm + " bpm" : "—");
-  text("pulseQuality", Math.round((s.pulse?.quality || 0) * 100) + "%");
-  text("pulseReason", s.pulse?.reason || "Collecting signal");
+  paintVitals(s.pulse, perception.running && !document.hidden);
   text("poseLabel", s.posture?.label || "Not visible");
   text(
     "poseTilt",

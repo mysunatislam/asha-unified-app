@@ -264,5 +264,13 @@ export function createMairaProvider({
     };
   }
 
-  return { ask };
+  // Start (or reuse) profile discovery early so it overlaps other request
+  // setup. Errors are deliberately ignored: ask() repeats the lookup and
+  // reports a sanitized error if discovery is still unavailable.
+  function warm() {
+    if (!env.MAIRA_API_KEY || !env.MAIRA_PROJECT_KEY) return;
+    profiles().catch(() => {});
+  }
+
+  return { ask, warm };
 }

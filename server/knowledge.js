@@ -11,7 +11,7 @@ export const guides = {
   senseassist:
     "Two uses: gentle phrase practice and clarification of heard words. Browser recognition produces editable transcripts; AI interpretation proposes candidate wording. Speaker confirmation is necessary. Confirmed words can be spoken aloud or sent through the caregiver request flow. Do not claim that transcript differences are a diagnosis or objective phoneme score.",
   vitalsense:
-    "The camera samples forehead color locally for a 20-second pulse-trend window. Motion, lighting changes and weak spectral signals are rejected. It cannot measure blood pressure, oxygen saturation or temperature, and does not trigger emergencies. For health decisions use an appropriate validated device and professional advice.",
+    "VitalSense shares the camera and samples color from the forehead and both cheeks locally. A continuous 12-second POS pulse window and a longer 30-second head-motion window support experimental pulse and breathing estimates. Motion, poor lighting, tracking gaps and weak signals are rejected. Calibrate 30 seconds learns a resting reference from usable readings. The full Details screen includes waveform, session trend and CSV reading log; optical HRV is provisional and withheld when timing is insufficient. It cannot measure blood pressure, oxygen saturation or temperature, and does not trigger emergencies. For health decisions use an appropriate validated device and professional advice.",
   posture:
     "Lightweight pose estimation shares the camera with face and both hands in every patient interface. Optional YOLO provides a second posture estimate. Shoulders must be visible; hips improve lean estimates. A minute of sustained change prompts a comfort check-in. Closed-eye/still-body then open-eye/movement is a possible wake pattern, not a sleep-stage classifier.",
   caregiver:
@@ -32,7 +32,7 @@ export const briefGuides = {
   senseassist:
     "Practice short phrases or clarify an editable speech transcript. Asha suggests possible words; the speaker confirms before they are spoken or sent.",
   vitalsense:
-    "Camera pulse is an experimental trend and needs a clear, still 20-second sample. It does not measure blood pressure, oxygen, or temperature or trigger emergencies.",
+    "VitalSense samples forehead and cheek color on the shared camera: 12 seconds for experimental pulse, 30 seconds for breathing. Keep still in steady light. Details includes baseline calibration, waveform, trend and export. It does not measure blood pressure, oxygen or temperature or trigger emergencies.",
   posture:
     "Pose tracking observes position and movement. A sustained change may prompt a comfort question. A wake-like pattern is not a sleep-stage reading or diagnosis.",
   caregiver:

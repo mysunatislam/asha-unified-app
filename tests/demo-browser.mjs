@@ -72,7 +72,8 @@ try {
   await page.waitForFunction(() => document.getElementById("chatMessages").textContent.includes("I can guide you through this module."));
   assert.equal(aiRequests.length, 1);
   assert.equal(aiRequests[0].auth, "Bearer demo-patient-token");
-  await page.locator("#details [data-view=patient]").click();
+  // Mobile chat overlays page content; the persistent navigation remains reachable.
+  await page.locator("#bottomNav [data-view=patient]").click();
   assert.equal(await page.locator("#chatPanel").isVisible(), false);
   await page.locator("[data-need=water]").click();
   await page.waitForTimeout(700);

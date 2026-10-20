@@ -87,6 +87,32 @@ test("concurrent profile discovery coalesces and expires after fifteen minutes",
   assert.equal(discoveries, 2);
 });
 
+test("early profile warm-up is reused by the authenticated request", async () => {
+  let discoveries = 0;
+  let release;
+  const waiting = new Promise((resolve) => {
+    release = resolve;
+  });
+  const provider = createMairaProvider({
+    env,
+    fetchImpl: async (_url, options) => {
+      if (options.method === "GET") {
+        discoveries++;
+        await waiting;
+        return profileResponse();
+      }
+      return Response.json({ answer: "Ready" });
+    },
+  });
+  provider.warm();
+  await Promise.resolve();
+  assert.equal(discoveries, 1);
+  const response = provider.ask(input);
+  release();
+  assert.equal((await response).text, "Ready");
+  assert.equal(discoveries, 1);
+});
+
 test("server overrides select verified profiles and legacy chat override still works", async () => {
   const selected = [];
   const provider = createMairaProvider({
