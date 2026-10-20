@@ -894,8 +894,8 @@ function renderPatient() {
     : "Care circle connected";
   $("demoNotice").hidden = !demoSession;
   $("demoNotice").textContent = patient
-    ? "Demo session. Explore every module; camera models run locally. Copy the caregiver link if you want to test delivery on another device."
-    : "Local demo. Live sensing and calibration work here; AI chat and caregiver delivery need a connection.";
+    ? "Demo · all modules available. Copy the caregiver link to test another device."
+    : "Local demo · sensing ready. Connect for AI and caregiver delivery.";
   for (const b of document.querySelectorAll("[data-demo-care-link]"))
     b.hidden = !demoSession || !patient || !carePatients.some((x) => x.patientId === patient.patientId && x.token);
   updateQuietAsha();

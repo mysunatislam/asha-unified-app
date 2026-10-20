@@ -87,6 +87,19 @@ test("concurrent profile discovery coalesces and expires after fifteen minutes",
   assert.equal(discoveries, 2);
 });
 
+test("conversation prefers the dedicated short-response profile without changing speech or bilingual routes", async () => {
+  const calls = [];
+  const provider = createMairaProvider({ env, fetchImpl: async (_url, options) => {
+    if (options.method === "GET") return profileResponse([...configuredProfiles, { id: "fast-private-id", name: "asha-fast-conversation-v1", model: "gemini-flash-latest" }]);
+    calls.push(JSON.parse(options.body).gpt_profile_id);
+    return Response.json({ answer: "Ready" });
+  } });
+  await provider.ask(input);
+  await provider.ask({ ...input, task: "speech" });
+  await provider.ask({ ...input, task: "bilingual" });
+  assert.deepEqual(calls, ["fast-private-id", "private-speech-id", "private-bilingual-id"]);
+});
+
 test("early profile warm-up is reused by the authenticated request", async () => {
   let discoveries = 0;
   let release;

@@ -4,6 +4,18 @@
   "crons": [{ "path": "/api/cleanup", "schedule": "17 3 * * *" }],
   "redirects": [
     {
+      "source": "/",
+      "has": [{ "type": "query", "key": "module" }],
+      "destination": "/app",
+      "permanent": false
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "role" }],
+      "destination": "/app",
+      "permanent": false
+    },
+    {
       "source": "/caregiver/:path*",
       "destination": "/?role=caregiver",
       "permanent": false
@@ -30,8 +42,10 @@
     }
   ],
   "rewrites": [
-    { "source": "/care", "destination": "/index.html" },
-    { "source": "/patient", "destination": "/index.html" }
+    { "source": "/app", "destination": "/app.html" },
+    { "source": "/app/", "destination": "/app.html" },
+    { "source": "/care", "destination": "/app.html" },
+    { "source": "/patient", "destination": "/app.html" }
   ],
   "headers": [
     {

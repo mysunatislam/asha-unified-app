@@ -50,8 +50,10 @@ http
         return;
       }
       let relative = decodeURIComponent(url.pathname);
-      if (relative === "/" || ["/care", "/patient"].includes(relative))
-        relative = "/index.html";
+      if (relative === "/")
+        relative = url.searchParams.has("module") || url.searchParams.has("role") ? "/app.html" : "/index.html";
+      if (["/app", "/app/", "/care", "/patient"].includes(relative))
+        relative = "/app.html";
       const file = path.resolve(root, "." + relative);
       if (!file.startsWith(root + path.sep)) throw Error("outside");
       const stat = await fs.stat(file);

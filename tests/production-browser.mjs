@@ -16,7 +16,7 @@ const p = await browser.newPage({ viewport: { width: 390, height: 844 } }),
 for (const page of [p, c]) page.on("pageerror", (e) => errors.push(e.message));
 let data;
 try {
-  await p.goto(base);
+  await p.goto(base + "app");
   await p.locator("#beginSetup").click();
   await p.locator('[name="supportCategory"][value="stroke"]').check();
   await p.locator('[name="supportGoal"][value="speech"]').check();

@@ -86,7 +86,7 @@ try {
   entry.on("pageerror", (e) => errors.push(e.message));
   await entry.route("**/api/session**", (route) => route.fulfill({ json: { ...profile, patientToken: "demo-patient-token", caregiverToken: "demo-caregiver-token" } }));
   await entry.route("**/api/health", (route) => route.fulfill({ json: { cloudConfigured: true } }));
-  await entry.goto(base);
+  await entry.goto(base + "app");
   await entry.locator("#welcome:not([hidden])").waitFor();
   assert.equal(await entry.locator("#linkDialog").evaluate((d) => d.open), false);
   await entry.locator("#exploreDemo").click();

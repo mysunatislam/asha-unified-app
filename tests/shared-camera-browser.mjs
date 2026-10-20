@@ -98,7 +98,7 @@ try {
       },
     });
   });
-  await page.goto(base);
+  await page.goto(base + "app");
   await page.locator("#patient:not([hidden])").waitFor();
   await page.locator("#startMonitoring").click();
   await page.waitForFunction(

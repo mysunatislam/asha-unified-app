@@ -5,6 +5,7 @@ const ASK_TIMEOUT_MS = 45000;
 const ROUTES = Object.freeze({
   conversation: {
     name: "ashagemini",
+    fastName: "asha-fast-conversation-v1",
     model: "gemini-flash-latest",
     envKey: "MAIRA_CHAT_PROFILE_ID",
   },
@@ -211,11 +212,14 @@ export function createMairaProvider({
       DISCOVERY_TIMEOUT_MS,
       signal,
     );
-    const profile = available.find((item) =>
-      override
-        ? item.id === override
-        : item.name === route.name && item.model === route.model,
-    );
+    // The dedicated app profile has a short output budget and no duplicate
+    // provider-side history, language detection or retrieval. App-owned RAG,
+    // task routing and tool verification remain unchanged. Shared profiles
+    // are never modified; keep the original as an explicit compatibility path.
+    const profile = override
+      ? available.find((item) => item.id === override)
+      : available.find((item) => item.name === route.fastName && item.model === route.model)
+        || available.find((item) => item.name === route.name && item.model === route.model);
     if (!profile)
       throw new MairaProviderError(
         "model_unavailable",

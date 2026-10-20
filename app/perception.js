@@ -407,36 +407,47 @@ export class Perception extends EventTarget {
       width: 16,
       height: 16,
     });
-    const c = this.roi.getContext("2d", { willReadFrequently: true });
+    const c = this.roiContext ??= this.roi.getContext("2d", { willReadFrequently: true });
     const W = this.video.videoWidth,
       H = this.video.videoHeight;
-    const rois = vitalROIs(lm, W, H), valid = [], boxes = [];
+    // Landmarks change much less often than camera color frames. Recompute
+    // geometry only for a new observed face result or video dimensions.
+    if (this.pulseGeometry?.landmarks !== lm || this.pulseGeometry.width !== W || this.pulseGeometry.height !== H) {
+      this.pulseGeometry = { landmarks: lm, width: W, height: H, rois: vitalROIs(lm, W, H), headY: lm.reduce((sum, p) => sum + p.y, 0) / lm.length };
+    }
+    const rois = this.pulseGeometry.rois, rgbSum = [0, 0, 0], boxes = [];
+    let roiCount = 0;
     for (const rect of rois) {
       c.drawImage(this.video, rect.x, rect.y, rect.w, rect.h, 0, 0, 16, 16);
       const px = c.getImageData(0, 0, 16, 16).data, rgb = [0, 0, 0];
-      for (let i = 0; i < px.length; i += 4)
-        for (let k = 0; k < 3; k++) rgb[k] += px[i + k] / (256 * 255);
+      for (let i = 0; i < px.length; i += 4) {
+        rgb[0] += px[i]; rgb[1] += px[i + 1]; rgb[2] += px[i + 2];
+      }
+      const divisor = px.length / 4 * 255;
+      for (let k = 0; k < 3; k++) rgb[k] /= divisor;
       const brightness = (rgb[0] + rgb[1] + rgb[2]) / 3;
       const accepted = brightness > .08 && brightness < .95;
       boxes.push({ x: rect.x / W, y: rect.y / H, w: rect.w / W, h: rect.h / H, valid: accepted });
-      if (accepted) valid.push(rgb);
+      if (accepted) { roiCount++; for (let k = 0; k < 3; k++) rgbSum[k] += rgb[k]; }
     }
-    if (!valid.length) this.pulse = this.vitals.invalidate("Skin regions are too dark, hidden, or overexposed", t);
+    if (!roiCount) this.pulse = this.vitals.invalidate("Skin regions are too dark, hidden, or overexposed", t);
     else this.pulse = this.vitals.add({
       t,
-      rgb: [0, 1, 2].map((k) => valid.reduce((sum, rgb) => sum + rgb[k], 0) / valid.length),
-      headY: lm.reduce((sum, p) => sum + p.y, 0) / lm.length,
+      rgb: rgbSum.map(v => v / roiCount),
+      headY: this.pulseGeometry.headY,
       motion: this.vitalsMotion || 0,
-      roiCount: valid.length,
+      roiCount,
     });
     this.pulse = { ...this.pulse, rois: boxes };
     this.snapshot.pulse = this.pulse;
   }
   draw() {
     if (!this.canvas.offsetParent) return;
-    const c = this.canvas.getContext("2d"),
-      W = (this.canvas.width = this.video.videoWidth || 640),
-      H = (this.canvas.height = this.video.videoHeight || 480);
+    const c = this.overlayContext ??= this.canvas.getContext("2d"),
+      W = this.video.videoWidth || 640,
+      H = this.video.videoHeight || 480;
+    if (this.canvas.width !== W) this.canvas.width = W;
+    if (this.canvas.height !== H) this.canvas.height = H;
     c.clearRect(0, 0, W, H);
     if (this.activeModule === "vitalsense") {
       c.lineWidth = 2;
@@ -600,6 +611,7 @@ export class Perception extends EventTarget {
     this.lastPulseVideoTime = null;
     this.lastPulseFrame = 0;
     this.faceResultAt = 0;
+    this.pulseGeometry = null;
     this.emit("status", "Monitoring paused");
   }
 }

@@ -2,14 +2,24 @@
   "name": "NeuroBridge Asha",
   "short_name": "Asha",
   "id": "./",
-  "start_url": "./",
+  "start_url": "./app",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#2563eb",
   "icons": [
-    { "src": "./assets/brand/asha-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "./assets/brand/asha-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    {
+      "src": "./assets/brand/asha-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/brand/asha-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "./assets/brand/asha-icon-maskable-192.png",
       "sizes": "192x192",

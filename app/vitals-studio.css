@@ -5,11 +5,23 @@
 .vitals-heading h2 { margin:.4rem 0; }
 .vitals-readings { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:24px; }
 .vitals-reading { display:flex; flex-direction:column; padding:20px; min-width:0; border:1px solid var(--line); border-radius:18px; background:var(--card); }
-.vitals-reading > strong { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px; margin:8px 0; font-size:2.6rem; line-height:1.1; font-variant-numeric:tabular-nums; letter-spacing:-.04em; }
+.vitals-reading > strong, .vitals-heart-reading > strong { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px; margin:8px 0; font-size:2.6rem; line-height:1.1; font-variant-numeric:tabular-nums; letter-spacing:-.04em; }
 .vitals-reading strong small { font-size:.8rem; font-weight:500; letter-spacing:0; color:var(--muted); }
 .vitals-reading > span:last-child { font-size:.75rem; line-height:1.55; color:var(--muted); }
 .vitals-heart { border-top:3px solid var(--vitals-pink); }
-.vitals-heart > strong { color:var(--vitals-pink); }
+.vitals-heart-reading { display:flex; align-items:center; gap:14px; color:var(--vitals-pink); }
+.vitals-heart-stage { position:relative; display:grid; place-items:center; flex:none; width:40px; height:40px; opacity:.4; }
+.vitals-heart-icon { position:relative; z-index:1; width:30px; height:30px; fill:currentColor; transform-origin:center; }
+.vitals-heart-ring { position:absolute; inset:8px; border:1.5px solid currentColor; border-radius:50%; opacity:0; }
+.vitals-heart-stage[data-beating="true"] { opacity:1; }
+.vitals-heart-stage[data-beating="true"] .vitals-heart-icon { animation:vitals-heartbeat var(--beat-duration, 1s) ease-out infinite; }
+.vitals-heart-stage[data-beating="true"] .vitals-heart-ring { animation:vitals-ripple var(--beat-duration, 1s) ease-out infinite; }
+.vitals-heart-stage[data-beating="true"] .vitals-heart-ring-late { animation-delay:calc(var(--beat-duration, 1s) * .18); }
+@keyframes vitals-heartbeat { 0%,65%,100% { transform:scale(1); } 12% { transform:scale(1.24); } 28% { transform:scale(1.05); } 40% { transform:scale(1.13); } }
+@keyframes vitals-ripple { 0% { transform:scale(.7); opacity:.7; } 80%,100% { transform:scale(2.3); opacity:0; } }
+@media(prefers-reduced-motion:reduce) {
+  .vitals-heart-stage[data-beating="true"] .vitals-heart-icon, .vitals-heart-stage[data-beating="true"] .vitals-heart-ring { animation:none; }
+}
 .vitals-status { padding:12px 0 0; margin-bottom:8px; font-size:.9rem; }
 .vitals-collection { display:flex; align-items:center; gap:12px; font-size:.75rem; color:var(--muted); }
 .vitals-collection progress { flex:1; min-width:50px; }
@@ -34,7 +46,10 @@
   .vitals-log-card { grid-column:auto; }
   .vitals-studio .card { padding:20px 16px; }
   .vitals-reading { padding:15px 12px; border-radius:14px; }
-  .vitals-reading > strong { font-size:2.1rem; }
+  .vitals-reading > strong, .vitals-heart-reading > strong { font-size:2.1rem; }
+  .vitals-heart-reading { gap:8px; }
+  .vitals-heart-stage { width:30px; height:30px; }
+  .vitals-heart-icon { width:25px; height:25px; }
   .vitals-reading .eyebrow { font-size:.58rem; }
   .vitals-baseline .section-heading { align-items:flex-start; flex-wrap:wrap; }
   .vitals-baseline .metrics { grid-template-columns:1fr; }

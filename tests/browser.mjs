@@ -20,7 +20,7 @@ const p = await browser.newPage({
 });
 const errors = [];
 p.on("pageerror", (e) => errors.push(e.message));
-await p.goto("http://127.0.0.1:4180/");
+await p.goto("http://127.0.0.1:4180/app");
 await p.screenshot({ path: "artifacts/welcome-desktop.png", fullPage: true });
 await p.locator("#beginSetup").click();
 await p.locator("#supportSkip").click();

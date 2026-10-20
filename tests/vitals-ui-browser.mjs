@@ -31,15 +31,18 @@ try {
   await page.evaluate(async () => {
     const {paintVitals} = await import("/app/vitals-studio.js");
     const pulse={bpm:78,quality:.9,confidence:90,status:"good",windowSeconds:12,requiredSeconds:12,sampleFps:30,roiCount:3,breathingBpm:15,reason:"Fixture signal",signal:[0,1,0,-1,0,1],hrv:{rmssd:null,beats:8,meanIbi:null,reason:"Timing not sufficient"},baseline:{bpm:76,progress:1,calibrating:false},trend:[{t:12000,bpm:78},{t:16000,bpm:79}],readings:[{t:12000,bpm:78,quality:.9}]};
+    pulse.at=performance.now();
     paintVitals(pulse,true);
     window.vitalsUiPause=()=>paintVitals(pulse,false);
   });
   assert.equal(await page.locator("#pulseValue").innerText(),"78");
+  assert.equal(await page.locator("#vsHeart").getAttribute("data-beating"),"true");
   assert.equal(await page.locator("#vsBreathing").innerText(),"15");
   assert.equal(await page.locator("#vsCompared").innerText(),"+2 bpm");
   assert.match(await page.locator("#vsSampling").innerText(),/3 \/ 3 skin regions/);
   await page.evaluate(()=>window.vitalsUiPause());
   assert.equal(await page.locator("#pulseValue").innerText(),"—");
+  assert.equal(await page.locator("#vsHeart").getAttribute("data-beating"),"false");
   assert.equal(await page.locator("#vsBreathing").innerText(),"—");
   assert.equal(await page.locator("#vsStatus").innerText(),"Camera paused");
   assert.match(await page.locator("#vsLog").innerText(),/78 bpm/);
@@ -49,7 +52,7 @@ try {
   await page.getByRole("heading",{name:"VitalSense",exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth > innerWidth),false);
   await page.evaluate(() => localStorage.removeItem("asha_live_patient"));
-  await page.goto(base);
+  await page.goto(base + "app");
   await page.locator("#hero-title").waitFor();
   if (await page.locator("html").getAttribute("data-theme")!=="light") await page.locator("#themeButton").click();
   await page.screenshot({path:"artifacts/release/homepage-light-mobile.png"});

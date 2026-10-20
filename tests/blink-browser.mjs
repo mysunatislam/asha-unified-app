@@ -14,7 +14,7 @@ const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
 try {
-  await page.goto(base);
+  await page.goto(base + "app");
   const result = await page.evaluate(async () => {
     const { BlinkCounter } = await import("./app/blink-counter.js");
     const { faceStudio, paintFaceStudio } = await import(
