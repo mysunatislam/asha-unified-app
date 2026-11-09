@@ -6,7 +6,9 @@
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "start": "node scripts/dev.mjs",
-    "test:browser": "node tests/browser.mjs"
+    "test:browser": "node tests/browser.mjs",
+    "test:everyday": "node tests/everyday-browser.mjs && node tests/everyday-offline.mjs",
+    "benchmark:everyday": "node scripts/everyday-benchmark.mjs --browser"
   },
   "dependencies": {
     "@vercel/blob": "2.8.0",

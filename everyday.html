@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#164dd5" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Asha · Everyday companion</title>
+    <link rel="icon" href="/assets/brand/asha-favicon-48.png" />
+    <link rel="stylesheet" href="/app/everyday/style.css" />
+  </head>
+  <body>
+    <a class="skip" href="#workspace">Skip to workspace</a>
+    <header class="topbar">
+      <a class="brand" href="#home" aria-label="Asha home"
+        ><span class="brand-icon">a</span
+        ><span>asha<small>EVERYDAY COMPANION</small></span></a
+      >
+      <div class="top-actions">
+        <label class="sr-only" for="language">Language</label
+        ><select id="language">
+          <option value="en">English</option>
+          <option value="bn">বাংলা</option></select
+        ><button class="icon-button" id="theme" aria-label="Switch color theme">
+          ◐</button
+        ><a class="secondary assistive-link" href="/app">Assistive app ↗</a>
+      </div>
+    </header>
+    <div class="app-layout">
+      <nav class="sidebar" aria-label="Everyday modules">
+        <p class="eyebrow">YOUR SPACE</p>
+        <a href="#home" data-route="home"
+          ><span aria-hidden="true">⌂</span> Overview</a
+        >
+        <a href="#nutrition" data-route="nutrition"
+          ><span aria-hidden="true">◒</span> Nutrition</a
+        >
+        <a href="#move" data-route="move"
+          ><span aria-hidden="true">↗</span> Move</a
+        >
+        <a href="#eyespeak" data-route="eyespeak"
+          ><span aria-hidden="true">◉</span> EyeSpeak</a
+        >
+        <a href="#care" data-route="care"
+          ><span aria-hidden="true">♡</span> Care</a
+        >
+        <div class="nav-divider"></div>
+        <a href="#clinic" data-route="clinic"
+          ><span aria-hidden="true">⊞</span> Clinic</a
+        >
+        <a href="#privacy" data-route="privacy"
+          ><span aria-hidden="true">◇</span> Privacy & details</a
+        >
+        <div class="sidebar-note">
+          <span class="status-dot"></span> Local first
+          <p>Camera stays on this device.</p>
+        </div>
+      </nav>
+      <main id="workspace" tabindex="-1">
+        <div class="page-top">
+          <div>
+            <span class="eyebrow" id="pageKicker"
+              >A LITTLE SUPPORT, EVERY DAY</span
+            >
+            <h1 id="pageTitle">Good to have you here.</h1>
+          </div>
+          <span class="pill" id="vaultStatus">Session only</span>
+        </div>
+        <section
+          class="camera-panel card"
+          id="cameraPanel"
+          hidden
+          aria-label="Shared camera preview"
+        >
+          <div class="section-heading">
+            <div>
+              <h2>Your camera</h2>
+              <p class="muted" id="cameraStatus" role="status">Camera paused</p>
+            </div>
+            <button id="stopCamera" class="secondary">Pause camera</button>
+          </div>
+          <div class="camera-stage">
+            <video id="sharedVideo" autoplay muted playsinline></video
+            ><canvas id="sharedOverlay" aria-hidden="true"></canvas>
+            <p class="camera-placeholder">
+              Start the camera from the module when you are ready.
+            </p>
+          </div>
+        </section>
+        <div id="moduleHost"></div>
+        <footer>
+          <a href="/app"
+            >FaceSpeak · FingerSpeak · VitalSense · SenseAssist · Posture ↗</a
+          >
+          <p>
+            Wellness and communication tools. Camera estimates do not establish
+            a diagnosis.
+          </p>
+        </footer>
+      </main>
+    </div>
+    <aside id="companion" class="companion" aria-label="Asha companion">
+      <section
+        id="ashaPanel"
+        class="card companion-panel"
+        hidden
+        aria-label="Ask Asha"
+      >
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">HERE WITH YOU</span>
+            <h2>Asha</h2>
+          </div>
+          <button class="icon-button" id="closeAsha" aria-label="Close Asha">
+            ×
+          </button>
+        </div>
+        <p id="ashaGuide" role="status">
+          Choose a module. I can explain each page.
+        </p>
+        <div class="actions">
+          <button id="readGuide" class="secondary">Read this page</button
+          ><a href="#care" class="secondary">Open Care</a>
+        </div>
+        <label
+          ><input id="voiceGuides" type="checkbox" /> Read guidance when I
+          change pages</label
+        >
+        <form id="companionForm">
+          <label class="field"
+            >Ask about this page<input
+              id="companionQuestion"
+              maxlength="600"
+              required
+              placeholder="How can I use this?" /></label
+          ><label
+            ><input id="companionConsent" type="checkbox" /> Send this message
+            to cloud AI</label
+          ><button class="primary">Ask Asha</button>
+        </form>
+        <p id="companionAnswer" role="status" aria-live="polite"></p>
+      </section>
+      <button
+        class="asha-bubble"
+        id="ashaBubble"
+        aria-label="Open Asha. Drag to move."
+        title="Open Asha · drag to move"
+      >
+        <img src="/assets/assets/images/asha-avatar.png" alt="" /><span
+          class="bubble-letter"
+          >a</span
+        ><span class="status-dot"></span>
+      </button>
+    </aside>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/app/everyday/main.js"></script>
+  </body>
+</html>

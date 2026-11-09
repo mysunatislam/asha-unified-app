@@ -8,6 +8,7 @@ import { CompanionGuide, responsePlan, confirmationMatches } from "./companion-g
 import { BlinkIntent, RAPID_BLINK, CONFIRM_BLINK } from "./blink-intent.js";
 import { SpeechCapture } from "./speech-capture.js";
 import { instantGreeting } from "./fast-reply.js";
+import { urgentCompanionResponse } from './everyday/companion-safety.js';
 import {
   supportOptions,
   supportGoals,
@@ -1693,6 +1694,8 @@ function immediateAppGuide(text) {
   return null;
 }
 async function askAsha(text, options = {}) {
+  const urgent = urgentCompanionResponse(text, { mode: options.mode, language: options.language || settings.language });
+  if (urgent) return urgent;
   if (!credential())
     throw Error("The local demo cannot reach Asha cloud right now. Live camera modules still work; retry when connected.");
   if (!settings.cloud) {

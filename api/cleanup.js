@@ -1,5 +1,6 @@
 import { store, base } from "../server/common.js";
 import { hash, equal } from "../server/logic.js";
+import { cleanupEveryday } from "../server/everyday-retention.js";
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (
@@ -26,7 +27,7 @@ export default async function handler(req, res) {
       today = new Date().toISOString().slice(0, 10);
     const old = limits.filter((k) => k.split("/")[2] < today);
     await store.remove(old);
-    res.json({ expiredSessionsRemoved: removed });
+    res.json({ expiredSessionsRemoved: removed, ...await cleanupEveryday(store) });
   } catch {
     res.status(503).json({ error: "Cleanup unavailable" });
   }

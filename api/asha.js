@@ -12,6 +12,7 @@ import {
   MairaProviderError,
 } from "../server/maira-provider.js";
 import { createAshaOrchestrator } from "../server/asha-orchestrator.js";
+import { urgentCompanionResponse } from '../app/everyday/companion-safety.js';
 
 const provider = createMairaProvider();
 const orchestrator = createAshaOrchestrator({ provider });
@@ -29,6 +30,9 @@ export default async function handler(req, res) {
   const started = Date.now();
   try {
     const b = body(req);
+    // Public local template: no account, provider discovery, usage read or cloud consent is needed.
+    const urgent = urgentCompanionResponse(b.text, { language: b.language, mode: b.mode, region: b.region, redFlags: b.redFlags });
+    if (urgent) return res.json(urgent);
     const wellFormed = /^[a-f0-9]{24}$/.test(b.patientId || "");
     const daily = wellFormed
       ? path(b.patientId, "usage/" + new Date().toISOString().slice(0, 10))
